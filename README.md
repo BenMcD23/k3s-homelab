@@ -119,8 +119,9 @@ make apply       # run the base role against all three nodes
 
 The `base` role is idempotent and safe to re-run. It covers: SSH key +
 passwordless sudo, SSH hardening, unattended-upgrades, swap off
-(persistently), k8s sysctls and kernel modules, chrony (replacing
-systemd-timesyncd), and Tailscale install + enrolment.
+(persistently), k8s sysctls and kernel modules, chrony (which replaces
+systemd-timesyncd, removed by apt on install), and Tailscale install +
+enrolment.
 
 ### A note on `--check`
 
@@ -141,10 +142,10 @@ ansible-playbook site.yml --limit oracle --tags tailscale
 
 ### SSH hardening
 
-`harden_ssh: true` (default) disables root login and password auth.
+`base_harden_ssh: true` (default) disables root login and password auth.
 Confirm key auth works before running this against a machine you cannot
 easily get to in person, squadron especially. Otherwise run with
-`-e harden_ssh=false` and turn it on once you are sure.
+`-e base_harden_ssh=false` and turn it on once you are sure.
 
 ## Rebuilding a node from scratch
 

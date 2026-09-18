@@ -9,4 +9,4 @@ cluster_ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMpLPtP5+Ob/Uc3t4Gb
 
 # Set false on the first run against a host you cannot easily reach in
 # person, until key auth is confirmed working.
-harden_ssh: true
+base_harden_ssh: true

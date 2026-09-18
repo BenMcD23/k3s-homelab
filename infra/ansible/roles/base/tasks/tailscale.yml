@@ -4,7 +4,7 @@
 # pulls an unpinned installer over the network on every run.
 - name: Add Tailscale apt signing key
   ansible.builtin.get_url:
-    url: "{{ tailscale_gpg_url }}"
+    url: "{{ base_tailscale_gpg_url }}"
     dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
     owner: root
     group: root
@@ -14,8 +14,8 @@
   ansible.builtin.deb822_repository:
     name: tailscale
     types: [deb]
-    uris: "{{ tailscale_repo_url }}"
-    suites: ["{{ tailscale_repo_codename }}"]
+    uris: "{{ base_tailscale_repo_url }}"
+    suites: ["{{ base_tailscale_repo_codename }}"]
     components: [main]
     signed_by: /usr/share/keyrings/tailscale-archive-keyring.gpg
     state: present
@@ -43,7 +43,7 @@
 
 - name: Check current Tailscale state
   ansible.builtin.command: tailscale status --json
-  register: tailscale_status
+  register: base_tailscale_status
   changed_when: false
   failed_when: false
   check_mode: false
@@ -53,9 +53,9 @@
 # repeat. An empty auth key skips enrolment entirely rather than failing.
 - name: Enrol node in the tailnet
   ansible.builtin.command:
-    cmd: "tailscale up --ssh --accept-dns=false --auth-key={{ tailscale_auth_key }}"
+    cmd: "tailscale up --ssh --accept-dns=false --auth-key={{ base_tailscale_auth_key }}"
   when:
-    - tailscale_auth_key | length > 0
-    - (tailscale_status.stdout | default('{}') | from_json).BackendState | default('') != 'Running'
+    - base_tailscale_auth_key | length > 0
+    - (base_tailscale_status.stdout | default('{}') | from_json).BackendState | default('') != 'Running'
   changed_when: true
   no_log: true

@@ -7,7 +7,7 @@
   ansible.builtin.copy:
     content: |
       # Managed by Ansible - roles/base/tasks/chrony.yml
-      {% for server in chrony_ntp_servers %}
+      {% for server in base_chrony_ntp_servers %}
       pool {{ server }} iburst
       {% endfor %}
       driftfile /var/lib/chrony/chrony.drift

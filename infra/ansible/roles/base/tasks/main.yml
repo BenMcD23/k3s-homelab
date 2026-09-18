@@ -9,7 +9,7 @@
 
 - name: Include SSH hardening
   ansible.builtin.import_tasks: ssh.yml
-  when: harden_ssh | bool
+  when: base_harden_ssh | bool
   tags: [ssh]
 
 - name: Include unattended upgrades

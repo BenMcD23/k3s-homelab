@@ -26,15 +26,15 @@
 
 - name: Read current iptables ruleset
   ansible.builtin.command: iptables -S
-  register: oracle_iptables
+  register: base_oracle_iptables
   changed_when: false
   check_mode: false
 
 - name: Assert Tailscale firewall chains are present
   ansible.builtin.assert:
     that:
-      - "'-A INPUT -j ts-input' in oracle_iptables.stdout"
-      - "'-A ts-input -i tailscale0 -j ACCEPT' in oracle_iptables.stdout"
+      - "'-A INPUT -j ts-input' in base_oracle_iptables.stdout"
+      - "'-A ts-input -i tailscale0 -j ACCEPT' in base_oracle_iptables.stdout"
     fail_msg: >-
       Tailscale's iptables chains are missing on oracle. k3s traffic over
       the tailnet will be rejected by the stock OCI rules. Check that
@@ -44,7 +44,7 @@
 - name: Assert the stock OCI reject rule has not been removed
   ansible.builtin.assert:
     that:
-      - "'-A INPUT -j REJECT --reject-with icmp-host-prohibited' in oracle_iptables.stdout"
+      - "'-A INPUT -j REJECT --reject-with icmp-host-prohibited' in base_oracle_iptables.stdout"
     fail_msg: >-
       The default REJECT rule is gone from /etc/iptables/rules.v4. The
       console security list allows all TCP from 0.0.0.0/0, so this host is

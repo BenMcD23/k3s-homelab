@@ -3,11 +3,11 @@
   community.general.modprobe:
     name: "{{ item }}"
     state: present
-  loop: "{{ k8s_kernel_modules }}"
+  loop: "{{ base_k8s_kernel_modules }}"
 
 - name: Load k8s kernel modules at boot
   ansible.builtin.copy:
-    content: "{{ k8s_kernel_modules | join('\n') }}\n"
+    content: "{{ base_k8s_kernel_modules | join('\n') }}\n"
     dest: /etc/modules-load.d/k8s.conf
     owner: root
     group: root
@@ -23,6 +23,6 @@
     sysctl_set: true
     reload: true
     state: present
-  loop: "{{ k8s_sysctls | dict2items }}"
+  loop: "{{ base_k8s_sysctls | dict2items }}"
   loop_control:
     label: "{{ item.key }}"
