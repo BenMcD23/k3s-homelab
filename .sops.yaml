@@ -1,0 +1,6 @@
+# SOPS rules: which files get encrypted with which age recipients.
+# See docs/decisions/0002-secrets-management.md for key generation.
+creation_rules:
+  - path_regex: infra/ansible/.*\.sops\.ya?ml$
+    age: >-
+      age1v4txqd55hxr4gaaxyx360plxjew7695en6ag3h8qnn3wnh2pza5qe85ce0

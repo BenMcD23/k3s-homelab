@@ -1,0 +1,15 @@
+---
+# The Oracle Minimal image ships without curl, chrony, or
+# unattended-upgrades. Nothing below may assume they exist.
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - ca-certificates
+      - gnupg
+      - chrony
+      - unattended-upgrades
+      - iptables-persistent
+    state: present
+    update_cache: true
+    cache_valid_time: 3600

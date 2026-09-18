@@ -1,0 +1,28 @@
+---
+- name: Load k8s kernel modules now
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ k8s_kernel_modules }}"
+
+- name: Load k8s kernel modules at boot
+  ansible.builtin.copy:
+    content: "{{ k8s_kernel_modules | join('\n') }}\n"
+    dest: /etc/modules-load.d/k8s.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+# br_netfilter must be loaded before the bridge-nf-call sysctls exist,
+# which is why this runs after the modprobe above rather than alongside it.
+- name: Apply k8s sysctls
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-k8s.conf
+    sysctl_set: true
+    reload: true
+    state: present
+  loop: "{{ k8s_sysctls | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"

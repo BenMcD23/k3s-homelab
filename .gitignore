@@ -1,0 +1,24 @@
+# Terraform
+**/.terraform/
+# .terraform.lock.hcl IS committed - it is the real provider pin
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log
+
+# Ansible
+*.retry
+inventory/group_vars/**/vault.yml
+
+# Secrets - SOPS-encrypted files are fine to commit (they're encrypted),
+# but never commit an unencrypted secrets file or the age private key.
+age-keys.txt
+*.key
+*.pem
+!infra/terraform/oracle/**/*.key.pub
+
+# OS / editor
+.DS_Store
+*.swp

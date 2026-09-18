@@ -1,0 +1,51 @@
+---
+# The stock OCI Ubuntu image ships /etc/iptables/rules.v4 with a default
+# REJECT for inbound traffic, allowing only port 22. This is enforced on
+# the host and is INDEPENDENT of the console security list - a port opened
+# in the security list is still dropped here. This is the rule that
+# actually governs what reaches k3s on this node.
+#
+# Tailscale inserts its own chains (ts-input, ts-forward) at runtime and
+# they are jumped to BEFORE the final REJECT:
+#
+#   -A INPUT -j ts-input
+#   -A ts-input -i tailscale0 -j ACCEPT          <- all tailnet traffic
+#   -A ts-input -p udp --dport 41641 -j ACCEPT   <- direct connection port
+#   ...
+#   -A INPUT -j REJECT --reject-with icmp-host-prohibited
+#
+# Because every k3s port (6443, 2379-2380, 10250, VXLAN 8472) travels over
+# tailscale0, it is accepted by that blanket rule before ever reaching the
+# REJECT. tailscaled recreates these chains on every start, so they do NOT
+# need persisting to rules.v4 - and must not be, or a stale copy will
+# conflict with the live set.
+#
+# So the correct action here is to leave the ruleset alone and assert that
+# it still looks the way the cluster depends on. If these assertions fail,
+# something changed the firewall and k3s traffic may be silently dropped.
+
+- name: Read current iptables ruleset
+  ansible.builtin.command: iptables -S
+  register: oracle_iptables
+  changed_when: false
+
+- name: Assert Tailscale firewall chains are present
+  ansible.builtin.assert:
+    that:
+      - "'-A INPUT -j ts-input' in oracle_iptables.stdout"
+      - "'-A ts-input -i tailscale0 -j ACCEPT' in oracle_iptables.stdout"
+    fail_msg: >-
+      Tailscale's iptables chains are missing on oracle. k3s traffic over
+      the tailnet will be rejected by the stock OCI rules. Check that
+      tailscaled is running, then re-run.
+    success_msg: Tailscale firewall chains present, tailnet traffic accepted
+
+- name: Assert the stock OCI reject rule has not been removed
+  ansible.builtin.assert:
+    that:
+      - "'-A INPUT -j REJECT --reject-with icmp-host-prohibited' in oracle_iptables.stdout"
+    fail_msg: >-
+      The default REJECT rule is gone from /etc/iptables/rules.v4. The
+      console security list allows all TCP from 0.0.0.0/0, so this host is
+      now directly exposed. Restore it before continuing.
+    success_msg: Stock OCI reject rule intact

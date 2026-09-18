@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+# These are not secrets (OCIDs are identifiers, not credentials) but they're
+# account-specific, so they stay out of the committed config.
+
+region           = "uk-london-1"
+tenancy_ocid     = "ocid1.tenancy.oc1..aaaaaaaagz3sbvhsbmk7a5nv4zo2btscea7i4d7l53aenkgndvw7wtioysia"
+compartment_ocid = "ocid1.tenancy.oc1..aaaaaaaagz3sbvhsbmk7a5nv4zo2btscea7i4d7l53aenkgndvw7wtioysia"
+
+instance_ocid      = "ocid1.instance.oc1.uk-london-1.anwgiljthd2lpkqcpab22umohltbko4c4bxpcffmbj3uydyapww2l7n2g26q"
+vcn_ocid           = "ocid1.vcn.oc1.uk-london-1.amaaaaaahd2lpkqaagux6f5wyhzkmdqxy36wxaqulji5d5ub4qp3lj4pzwwa"
+subnet_ocid        = "ocid1.subnet.oc1.uk-london-1.aaaaaaaab2olpzw6r27nobxoxuzh7toplvbv3mggcmlrzu6ev3w2dolecmxa"
+security_list_ocid = "ocid1.securitylist.oc1.uk-london-1.aaaaaaaaixiaq3kpqfstmnjju4qmqz64usxaxoeh4j7nvm4v7swsorra2dxa"
+
+availability_domain = "vOEW:UK-LONDON-1-AD-1"
+instance_ocpus      = 1
+instance_memory_gbs = 6

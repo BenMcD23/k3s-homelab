@@ -1,0 +1,22 @@
+---
+- name: Configure chrony NTP servers
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - roles/base/tasks/chrony.yml
+      {% for server in chrony_ntp_servers %}
+      pool {{ server }} iburst
+      {% endfor %}
+      driftfile /var/lib/chrony/chrony.drift
+      makestep 1.0 3
+      rtcsync
+    dest: /etc/chrony/conf.d/99-cluster.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart chrony
+
+- name: Ensure chrony is running
+  ansible.builtin.systemd_service:
+    name: chrony
+    enabled: true
+    state: started

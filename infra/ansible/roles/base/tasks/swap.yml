@@ -1,0 +1,27 @@
+---
+# kubelet refuses to start with swap on unless explicitly configured
+# otherwise. Turn it off now and keep it off across reboots.
+- name: Disable swap for the current boot
+  ansible.builtin.command: swapoff -a
+  when: ansible_swaptotal_mb | default(0) > 0
+  changed_when: ansible_swaptotal_mb | default(0) > 0
+
+- name: Remove swap entries from fstab
+  ansible.posix.mount:
+    path: "{{ item.mount }}"
+    fstype: "{{ item.fstype }}"
+    state: absent_from_fstab
+  loop: "{{ ansible_mounts | selectattr('fstype', 'equalto', 'swap') | list }}"
+  loop_control:
+    label: "{{ item.mount }}"
+
+- name: Comment out any remaining swap lines in fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
+
+- name: Mask systemd swap units
+  ansible.builtin.systemd_service:
+    name: swap.target
+    masked: true

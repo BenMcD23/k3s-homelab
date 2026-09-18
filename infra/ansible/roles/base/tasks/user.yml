@@ -1,0 +1,16 @@
+---
+- name: Ensure cluster SSH public key is authorised
+  ansible.posix.authorized_key:
+    user: "{{ ansible_user }}"
+    key: "{{ cluster_ssh_public_key }}"
+    state: present
+    exclusive: false
+
+- name: Ensure passwordless sudo for the ansible user
+  ansible.builtin.copy:
+    content: "{{ ansible_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    dest: "/etc/sudoers.d/90-{{ ansible_user }}"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: "visudo -cf %s"

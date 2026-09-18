@@ -1,0 +1,18 @@
+---
+# Written as a drop-in rather than edits to sshd_config, so the distro
+# file stays untouched and the change is one file to remove if it locks
+# someone out.
+- name: Harden sshd
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - roles/base/tasks/ssh.yml
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      ChallengeResponseAuthentication no
+    dest: /etc/ssh/sshd_config.d/10-hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd

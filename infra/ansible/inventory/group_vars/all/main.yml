@@ -1,0 +1,7 @@
+---
+# Public SSH key pushed to every node. Not a secret.
+cluster_ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMpLPtP5+Ob/Uc3t4Gb1NI92TG8cYUMJDUEm75s6nS2H mcdonaldben02@gmail.com"
+
+# Set false on the first run against a host you can't easily get physical
+# access to, until key auth is confirmed working.
+harden_ssh: true

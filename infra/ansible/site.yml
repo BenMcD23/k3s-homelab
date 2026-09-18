@@ -1,0 +1,6 @@
+---
+- name: Base configuration for all cluster nodes
+  hosts: all
+  become: true
+  roles:
+    - base

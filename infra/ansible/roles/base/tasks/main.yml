@@ -1,0 +1,38 @@
+---
+- name: Include package bootstrap
+  ansible.builtin.import_tasks: packages.yml
+  tags: [packages]
+
+- name: Include SSH key and user setup
+  ansible.builtin.import_tasks: user.yml
+  tags: [user]
+
+- name: Include SSH hardening
+  ansible.builtin.import_tasks: ssh.yml
+  when: harden_ssh | bool
+  tags: [ssh]
+
+- name: Include unattended upgrades
+  ansible.builtin.import_tasks: unattended_upgrades.yml
+  tags: [updates]
+
+- name: Include swap disable
+  ansible.builtin.import_tasks: swap.yml
+  tags: [swap]
+
+- name: Include kernel modules and sysctls
+  ansible.builtin.import_tasks: kernel.yml
+  tags: [kernel]
+
+- name: Include time sync
+  ansible.builtin.import_tasks: chrony.yml
+  tags: [chrony]
+
+- name: Include Tailscale
+  ansible.builtin.import_tasks: tailscale.yml
+  tags: [tailscale]
+
+- name: Include Oracle-specific firewall handling
+  ansible.builtin.import_tasks: oracle_firewall.yml
+  when: inventory_hostname == 'oracle'
+  tags: [firewall]

@@ -1,0 +1,29 @@
+---
+# SSH hardening. Disabling these locks out password auth - make sure key
+# auth works first, especially on squadron (remote site).
+harden_ssh: true
+
+# k8s sysctls and modules
+k8s_kernel_modules:
+  - br_netfilter
+  - overlay
+
+k8s_sysctls:
+  net.bridge.bridge-nf-call-iptables: "1"
+  net.bridge.bridge-nf-call-ip6tables: "1"
+  net.ipv4.ip_forward: "1"
+
+# Tailscale apt repo. Pinned to the Ubuntu release codename rather than
+# tracking "stable" blindly.
+tailscale_repo_codename: noble
+tailscale_repo_url: "https://pkgs.tailscale.com/stable/ubuntu"
+tailscale_gpg_url: "https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg"
+
+# Set in inventory group_vars from SOPS. Empty means "skip enrolment" -
+# a node already on the tailnet doesn't need re-enrolling.
+tailscale_auth_key: ""
+
+chrony_ntp_servers:
+  - 0.ubuntu.pool.ntp.org
+  - 1.ubuntu.pool.ntp.org
+  - 2.ubuntu.pool.ntp.org

@@ -1,0 +1,16 @@
+---
+- name: Enable unattended-upgrades
+  ansible.builtin.copy:
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Ensure unattended-upgrades service is running
+  ansible.builtin.systemd_service:
+    name: unattended-upgrades
+    enabled: true
+    state: started
