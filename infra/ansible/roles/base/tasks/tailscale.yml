@@ -21,6 +21,14 @@
     state: present
     enabled: true
 
+# tailscale.com/install.sh writes a legacy one-line tailscale.list. The
+# deb822_repository task above writes tailscale.sources. Both present means
+# apt reports the repo as configured twice, so the old one is removed.
+- name: Remove legacy Tailscale apt source
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/tailscale.list
+    state: absent
+
 - name: Install Tailscale
   ansible.builtin.apt:
     name: tailscale

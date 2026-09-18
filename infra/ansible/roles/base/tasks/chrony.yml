@@ -1,15 +1,8 @@
 ---
-# Ubuntu ships systemd-timesyncd and it is active by default. Installing
-# chrony normally deactivates it, but two daemons stepping the same clock
-# is the kind of fault etcd finds before you do, so it is stopped and
-# masked explicitly rather than left to packaging behaviour.
-- name: Disable systemd-timesyncd
-  ansible.builtin.systemd_service:
-    name: systemd-timesyncd
-    state: stopped
-    enabled: false
-    masked: true
-
+# Nothing here disables systemd-timesyncd. Ubuntu's chrony package
+# conflicts with it, so installing chrony in packages.yml removes the
+# timesyncd package outright - there is no unit left to stop, and a task
+# that tries fails with "Could not find the requested service".
 - name: Configure chrony NTP servers
   ansible.builtin.copy:
     content: |
