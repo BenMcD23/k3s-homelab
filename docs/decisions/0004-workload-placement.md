@@ -6,7 +6,7 @@ Accepted
 ## Context
 The three machines are good at different things:
 
-- **home** — reliable network, modest CPU (i5-9500T), amd64.
+- **home** — reliable network, modest CPU (i5-10400T), amd64.
 - **squadron** — best CPU and the only GPU, amd64. On remote WiFi that is
   unreliable, so it could drop off the network.
 - **oracle** — always on, weakest CPU (1 OCPU), arm64.

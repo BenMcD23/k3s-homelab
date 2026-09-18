@@ -12,7 +12,7 @@ next piece of work.
 
 | Alias      | Hostname      | User        | Arch    | Notes |
 |------------|---------------|-------------|---------|-------|
-| `home`     | `home-server` | `ben`       | amd64   | HP ProDesk 400 G5, i5-9500T, 16GB. Reliable home LAN. Founding etcd member. |
+| `home`     | `home-server` | `ben`       | amd64   | Lenovo M70q, i5-10400T, 16GB. Reliable home LAN. Founding etcd member. |
 | `squadron` | `317server`   | `server317` | amd64   | i7-4790K, GTX 1070, 16GB. Remote site on WiFi. Best CPU and the only GPU, but the connection is unreliable and it could drop off. |
 | `oracle`   | `k8s-node`    | `ubuntu`    | aarch64 | OCI A1.Flex, 1 OCPU / 6GB. **Already provisioned — never recreate**, Ampere capacity is scarce. |
 
@@ -119,8 +119,17 @@ make apply       # run the base role against all three nodes
 
 The `base` role is idempotent and safe to re-run. It covers: SSH key +
 passwordless sudo, SSH hardening, unattended-upgrades, swap off
-(persistently), k8s sysctls and kernel modules, chrony, and Tailscale
-install + enrolment.
+(persistently), k8s sysctls and kernel modules, chrony (replacing
+systemd-timesyncd), and Tailscale install + enrolment.
+
+### A note on `--check`
+
+`ansible-playbook site.yml --check` on a host that has not been configured
+yet will report failures on tasks that depend on earlier ones. Check mode
+simulates the package install, so a later "is the service running" task
+looks for something that is not there. That is expected on a first run and
+not a sign anything is wrong. Once a host has had the role applied for
+real, `--check` should come back clean.
 
 Target one host:
 

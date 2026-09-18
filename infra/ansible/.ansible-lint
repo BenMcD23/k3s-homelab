@@ -1,0 +1,6 @@
+---
+# SOPS-encrypted files are generated artifacts. Their comments and long
+# base64 lines are not ours to format.
+exclude_paths:
+  - "**/*.sops.yaml"
+  - "**/*.sops.yml"

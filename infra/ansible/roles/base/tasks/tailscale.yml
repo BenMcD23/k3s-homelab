@@ -38,6 +38,7 @@
   register: tailscale_status
   changed_when: false
   failed_when: false
+  check_mode: false
 
 # Only enrols a node that isn't already on the tailnet. Re-running against
 # an enrolled node is a no-op, which is what makes this role safe to

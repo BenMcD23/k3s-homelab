@@ -28,6 +28,7 @@
   ansible.builtin.command: iptables -S
   register: oracle_iptables
   changed_when: false
+  check_mode: false
 
 - name: Assert Tailscale firewall chains are present
   ansible.builtin.assert:
