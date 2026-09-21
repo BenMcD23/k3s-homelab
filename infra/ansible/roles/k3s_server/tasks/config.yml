@@ -7,8 +7,7 @@
     group: root
     mode: "0700"
 
-# no_log because the rendered file carries the cluster token, and a diff
-# would print it.
+# no_log: the rendered file contains the cluster token.
 - name: Write the k3s server config
   ansible.builtin.template:
     src: config.yaml.j2

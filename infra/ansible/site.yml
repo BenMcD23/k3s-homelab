@@ -6,10 +6,9 @@
   roles:
     - base
 
-# Bring-up order is not cosmetic. The first server has to be up and
-# answering with --cluster-init before anything can join it, and the
-# joiners go one at a time so two nodes never register as etcd members
-# concurrently - see ADR 0001.
+# Order matters: the first server has to be up with --cluster-init before
+# anything can join it. serial: 1 below keeps two nodes from registering as
+# etcd members at the same time (ADR 0001).
 - name: Bootstrap the first k3s server
   hosts: k3s_first_server
   become: true

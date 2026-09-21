@@ -5,8 +5,8 @@
       - (groups['k3s_first_server'] | default([])) | length == 1
     fail_msg: >-
       The k3s_first_server inventory group must hold exactly one host. It
-      decides which node runs --cluster-init, and that is not something two
-      nodes can both do (ADR 0001).
+      decides which node runs --cluster-init, and only one node can do that
+      (ADR 0001).
     success_msg: "First server is {{ k3s_server_first_host }}"
   run_once: true
 
@@ -31,9 +31,9 @@
       role= node label that every workload selects on (ADR 0004).
     quiet: true
 
-# Catches a stale inventory address before k3s binds to it. An address that
-# is not on this machine gives a cluster that comes up and then cannot talk
-# to itself, which is a much slower thing to debug than a failed assert.
+# Catches a stale inventory address before k3s binds to it. An address the
+# machine does not hold gives a cluster that starts but cannot talk to
+# itself, which is slower to debug than a failed assert.
 - name: Assert the inventory address is a Tailscale address on this host
   ansible.builtin.assert:
     that:

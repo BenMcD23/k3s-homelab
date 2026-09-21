@@ -3,12 +3,12 @@
 #   terraform plan     # must show "4 to import, 0 to add, 0 to change, 0 to destroy"
 #   terraform apply
 #
-# After the first successful apply, these blocks are inert and can be
-# deleted. They are kept here as documentation of how state was built.
+# After the first apply these blocks do nothing and can be deleted. They
+# stay as a record of how state was built.
 #
 # If plan shows changes rather than a clean import, a variable in
-# terraform.tfvars does not match reality - fix the variable, never
-# let terraform "correct" the live infrastructure.
+# terraform.tfvars does not match the live infrastructure. Fix the variable
+# rather than applying the change.
 
 import {
   to = oci_core_vcn.k8s

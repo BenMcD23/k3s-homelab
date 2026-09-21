@@ -3,8 +3,8 @@
   ansible.builtin.import_tasks: preflight.yml
   tags: [preflight]
 
-# Joining a server that is not answering yet fails in a way that leaves a
-# half-registered etcd member behind, so wait rather than find out.
+# Joining a server that is not answering yet can leave a half-registered
+# etcd member behind.
 - name: Wait for the first server's API before joining
   ansible.builtin.wait_for:
     host: "{{ k3s_server_first_ip }}"
@@ -20,8 +20,8 @@
   ansible.builtin.import_tasks: install.yml
   tags: [install]
 
-# Handlers normally run at the end of the play. A pending config change has
-# to land before anything below asks the API whether the node is healthy.
+# Handlers normally run at the end of the play, but a pending config change
+# has to land before the readiness checks below.
 - name: Apply any pending k3s restart now
   ansible.builtin.meta: flush_handlers
 

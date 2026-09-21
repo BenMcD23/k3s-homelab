@@ -1,8 +1,8 @@
 ---
-# Nothing here disables systemd-timesyncd. Ubuntu's chrony package
-# conflicts with it, so installing chrony in packages.yml removes the
-# timesyncd package outright - there is no unit left to stop, and a task
-# that tries fails with "Could not find the requested service".
+# systemd-timesyncd is not disabled here: Ubuntu's chrony package conflicts
+# with it, so installing chrony in packages.yml removes it outright. There is
+# no unit left to stop, and trying fails with "Could not find the requested
+# service".
 - name: Configure chrony NTP servers
   ansible.builtin.copy:
     content: |

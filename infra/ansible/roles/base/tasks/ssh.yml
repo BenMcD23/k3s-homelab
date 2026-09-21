@@ -1,7 +1,6 @@
 ---
-# Written as a drop-in rather than edits to sshd_config, so the distro
-# file stays untouched and the change is one file to remove if it locks
-# someone out.
+# A drop-in rather than edits to sshd_config: the distro file stays
+# untouched and this is one file to delete if it locks someone out.
 - name: Harden sshd
   ansible.builtin.copy:
     content: |

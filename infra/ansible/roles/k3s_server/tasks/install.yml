@@ -28,8 +28,8 @@
     mode: "0755"
   when: k3s_server_current_version != k3s_server_version
 
-# The config file is already in place, so the service comes up correctly
-# the first time rather than starting wrong and being restarted into shape.
+# config.yml runs before this, so the service starts with its config
+# already in place.
 - name: Install k3s {{ k3s_server_version }}
   ansible.builtin.command:
     cmd: "{{ k3s_server_install_script_path }}"

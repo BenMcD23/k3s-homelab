@@ -1,9 +1,9 @@
 # Managed by Ansible - roles/k3s_server/templates/config.yaml.j2
 # Edits here are overwritten on the next run. Change the role instead.
 {% if k3s_server_is_first | bool %}
-# Without cluster-init k3s silently uses sqlite instead of etcd. The
-# cluster starts and looks healthy, but no second server can ever join and
-# there is no supported way to convert afterwards - see ADR 0001.
+# Without cluster-init k3s uses sqlite instead of etcd. The cluster comes
+# up and looks healthy, but no second server can join and there is no
+# supported way to convert afterwards (ADR 0001).
 cluster-init: true
 {% else %}
 server: "{{ k3s_server_join_url }}"
@@ -15,10 +15,9 @@ node-ip: "{{ k3s_server_node_ip }}"
 advertise-address: "{{ k3s_server_node_ip }}"
 flannel-iface: "{{ k3s_server_flannel_iface }}"
 
-# No bind-address is set. The API server has to keep listening on
-# 127.0.0.1 or this node's own /etc/rancher/k3s/k3s.yaml, which points at
-# localhost, stops working. What keeps 6443 off the internet is the host
-# firewall, not the bind address - see roles/base/tasks/oracle_firewall.yml.
+# bind-address is left unset so the API server keeps listening on 127.0.0.1;
+# the node's own /etc/rancher/k3s/k3s.yaml points there. 6443 is kept off the
+# internet by the host firewall, see roles/base/tasks/oracle_firewall.yml.
 
 tls-san:
   - "{{ k3s_server_node_ip }}"
@@ -27,8 +26,8 @@ tls-san:
   - "{{ san }}"
 {% endfor %}
 
-# Applied when the node first registers. tasks/labels.yml reconciles it on
-# every run, which is what makes changing node_role later actually work.
+# Only applied when the node first registers; tasks/labels.yml reapplies it
+# on every run so node_role changes take effect.
 node-label:
   - "{{ k3s_server_node_label }}"
 {% if k3s_server_secrets_encryption | bool %}

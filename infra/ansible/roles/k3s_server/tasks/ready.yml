@@ -5,9 +5,8 @@
     port: 6443
     timeout: "{{ k3s_server_ready_timeout }}"
 
-# The Node object shows up a little after the API starts answering, and on
-# a join it has to register first, so this retries instead of failing on
-# the first miss.
+# The Node object appears shortly after the API starts answering, and later
+# still on a join, so retry rather than fail on the first miss.
 - name: Wait for this node to report Ready
   ansible.builtin.command:
     cmd: "k3s kubectl wait --for=condition=Ready node/{{ k3s_server_node_name }} --timeout=30s"
