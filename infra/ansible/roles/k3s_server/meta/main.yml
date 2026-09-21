@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  role_name: k3s_server
+  author: BenMcD23
+  description: k3s server with embedded etcd, meshed over Tailscale
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - all
+dependencies: []

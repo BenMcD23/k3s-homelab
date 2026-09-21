@@ -1,0 +1,8 @@
+---
+# Which node bootstraps the cluster is decided by inventory group
+# membership, so there is one source of truth and no host can be told to
+# --cluster-init by accident. Not in defaults/ - this is not a knob.
+k3s_server_is_first: "{{ inventory_hostname in (groups['k3s_first_server'] | default([])) }}"
+k3s_server_first_host: "{{ (groups['k3s_first_server'] | default([]))[0] | default('') }}"
+k3s_server_first_ip: "{{ hostvars[k3s_server_first_host].ansible_host | default('') }}"
+k3s_server_join_url: "https://{{ k3s_server_first_ip }}:6443"

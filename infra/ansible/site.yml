@@ -2,5 +2,25 @@
 - name: Base configuration for all cluster nodes
   hosts: all
   become: true
+  tags: [base]
   roles:
     - base
+
+# Bring-up order is not cosmetic. The first server has to be up and
+# answering with --cluster-init before anything can join it, and the
+# joiners go one at a time so two nodes never register as etcd members
+# concurrently - see ADR 0001.
+- name: Bootstrap the first k3s server
+  hosts: k3s_first_server
+  become: true
+  tags: [k3s]
+  roles:
+    - k3s_server
+
+- name: Join the remaining k3s servers
+  hosts: k3s_additional_servers
+  become: true
+  serial: 1
+  tags: [k3s]
+  roles:
+    - k3s_server

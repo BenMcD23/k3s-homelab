@@ -1,0 +1,11 @@
+---
+# node-label in config.yaml only applies the first time a node registers.
+# Reconciling here on every run is what makes changing node_role in the
+# inventory actually move a node's placement (ADR 0004).
+- name: Label this node with its workload role
+  ansible.builtin.command:
+    cmd: "k3s kubectl label node {{ k3s_server_node_name }} {{ k3s_server_node_label }} --overwrite"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: k3s_server_label
+  changed_when: "'not labeled' not in k3s_server_label.stdout"

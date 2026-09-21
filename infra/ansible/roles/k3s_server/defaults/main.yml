@@ -1,0 +1,57 @@
+---
+# k3s release to install. Pinned deliberately: unpinned means a routine
+# re-run can upgrade the cluster underneath you. Bump this one line, then
+# run the play - install.sh replaces the binary and restarts the service.
+#   https://github.com/k3s-io/k3s/releases
+k3s_server_version: "v1.33.5+k3s1"
+
+# get.k3s.io is fetched only when the installed version does not match the
+# pin above, not on every run. The script itself is unversioned, but the
+# binary it pulls is the pinned release and the script verifies it against
+# that release's published sha256 before installing anything.
+k3s_server_install_script_url: https://get.k3s.io
+k3s_server_install_script_path: /usr/local/bin/k3s-install.sh
+
+# Every k3s port travels over the tailnet - it is the only network all
+# three nodes share (ADR 0004). node-ip and advertise-address come from the
+# inventory's ansible_host, which is the node's Tailscale IP.
+k3s_server_node_ip: "{{ ansible_host }}"
+k3s_server_flannel_iface: tailscale0
+
+# The ADRs talk about home/squadron/oracle, so the cluster uses those names
+# rather than the machine hostnames (home-server/317server/k8s-node) that
+# k3s would pick by default. Changing this after a node has registered
+# leaves the old Node object behind - delete it by hand if you ever do.
+k3s_server_node_name: "{{ inventory_hostname }}"
+
+# Workload placement label (ADR 0004). node_role is set per host in the
+# inventory: interactive / batch / edge.
+k3s_server_node_label: "role={{ node_role }}"
+
+# Shared by every server. Stays named k3s_token in SOPS - that is an
+# inventory variable, not a role one, so it needs no prefix.
+k3s_server_token: "{{ k3s_token | default('') }}"
+
+# Encrypt Secrets at rest in etcd. Free to enable at cluster-init; enabling
+# it on a cluster that already holds Secrets means re-encrypting them.
+k3s_server_secrets_encryption: true
+
+# Bundled components to leave out, e.g. [traefik, servicelb]. Empty means
+# k3s defaults. No ADR covers ingress yet, so nothing is disabled until
+# there is one.
+k3s_server_disable: []
+
+# Extra SANs on the API server certificate, on top of this node's Tailscale
+# IP and MagicDNS name, which are always included.
+k3s_server_extra_tls_sans: []
+
+# Where the admin kubeconfig lands on the machine running Ansible. Fetched
+# from the first server only. This is cluster-admin - treat it like a
+# private key.
+k3s_server_fetch_kubeconfig: true
+k3s_server_kubeconfig_local_path: "{{ lookup('env', 'HOME') }}/.kube/k3s-homelab.yaml"
+k3s_server_kubeconfig_context: k3s-homelab
+
+# How long to wait for an API server to answer and for a node to go Ready.
+# Joining over squadron's link can be slow.
+k3s_server_ready_timeout: 300

@@ -10,6 +10,7 @@ crash.*.log
 
 # Ansible
 *.retry
+.ansible/
 inventory/group_vars/**/vault.yml
 
 # Secrets - SOPS-encrypted files are fine to commit (they're encrypted),
