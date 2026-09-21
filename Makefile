@@ -3,7 +3,7 @@
 TF_DIR := infra/terraform/oracle
 ANSIBLE_DIR := infra/ansible
 
-.PHONY: help deps fmt lint validate plan apply base cluster
+.PHONY: help deps fmt lint validate plan apply base cluster etcd-health
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -33,3 +33,6 @@ base: ## Host prep only, no k3s
 
 cluster: ## k3s bring-up only - the base role must have run first
 	cd $(ANSIBLE_DIR) && ansible-playbook site.yml --tags k3s
+
+etcd-health: ## etcd fsync latency and leader stability on every server
+	@scripts/etcd-health.sh
