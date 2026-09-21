@@ -1,7 +1,7 @@
 ---
-# Installed from the apt repo rather than the install.sh one-liner: the
-# script needs curl (absent on the Oracle Minimal image at first boot) and
-# pulls an unpinned installer over the network on every run.
+# From the apt repo rather than the install.sh one-liner: the script needs
+# curl, which the Oracle Minimal image does not have at first boot, and
+# refetches an unpinned installer on every run.
 - name: Add Tailscale apt signing key
   ansible.builtin.get_url:
     url: "{{ base_tailscale_gpg_url }}"
@@ -21,9 +21,8 @@
     state: present
     enabled: true
 
-# tailscale.com/install.sh writes a legacy one-line tailscale.list. The
-# deb822_repository task above writes tailscale.sources. Both present means
-# apt reports the repo as configured twice, so the old one is removed.
+# install.sh writes a one-line tailscale.list; the task above writes
+# tailscale.sources. With both present apt sees the repo configured twice.
 - name: Remove legacy Tailscale apt source
   ansible.builtin.file:
     path: /etc/apt/sources.list.d/tailscale.list
@@ -48,9 +47,8 @@
   failed_when: false
   check_mode: false
 
-# Only enrols a node that isn't already on the tailnet. Re-running against
-# an enrolled node is a no-op, which is what makes this role safe to
-# repeat. An empty auth key skips enrolment entirely rather than failing.
+# Skipped if the node is already on the tailnet or no auth key is set, so
+# re-running against an enrolled node is a no-op.
 - name: Enrol node in the tailnet
   ansible.builtin.command:
     cmd: "tailscale up --ssh --accept-dns=false --auth-key={{ base_tailscale_auth_key }}"

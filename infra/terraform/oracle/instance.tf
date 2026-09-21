@@ -1,6 +1,6 @@
 # The Oracle Cloud A1.Flex instance. Ampere capacity is scarce in this
-# region - if this instance is destroyed it may not be possible to
-# recreate it. prevent_destroy is the whole point of this file.
+# region, so a destroyed instance may not be recreatable, hence
+# prevent_destroy below.
 
 resource "oci_core_instance" "k8s_node" {
   compartment_id      = var.compartment_ocid
@@ -26,9 +26,8 @@ resource "oci_core_instance" "k8s_node" {
   lifecycle {
     prevent_destroy = true
 
-    # This config adopts an instance that already exists and is already
-    # configured by Ansible. These attributes are set on the live instance
-    # and must not be reconciled from here:
+    # The instance already exists and is configured by Ansible. These
+    # attributes are set on the live instance and are not managed here:
     #   source_details - the boot image OCID, unknown until fetched, and
     #                    changing it would force replacement
     #   metadata       - holds the cloud-init SSH keys, managed by Ansible

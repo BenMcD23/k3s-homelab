@@ -1,0 +1,50 @@
+---
+# k3s release to install
+#   https://github.com/k3s-io/k3s/releases
+k3s_server_version: "v1.33.5+k3s1"
+
+# Fetched only when the installed version differs from the pin above. The
+# script is unversioned, but it installs the pinned release and checks the
+# binary against that release's published sha256.
+k3s_server_install_script_url: https://get.k3s.io
+k3s_server_install_script_path: /usr/local/bin/k3s-install.sh
+
+# All k3s traffic goes over the tailnet, the only network all three nodes
+# share (ADR 0004). ansible_host is the node's Tailscale IP.
+k3s_server_node_ip: "{{ ansible_host }}"
+k3s_server_flannel_iface: tailscale0
+
+# Inventory names (home/squadron/oracle) rather than the machine hostnames
+# k3s defaults to (home-server/317server/k8s-node). Changing this after a
+# node has registered leaves the old Node object behind; delete it by hand.
+k3s_server_node_name: "{{ inventory_hostname }}"
+
+# Workload placement label (ADR 0004). node_role is set per host in the
+# inventory: interactive / batch / edge.
+k3s_server_node_label: "role={{ node_role }}"
+
+# Shared by every server. Named k3s_token in SOPS because it is an
+# inventory variable, not a role one, so it takes no role prefix.
+k3s_server_token: "{{ k3s_token | default('') }}"
+
+# Encrypt Secrets at rest in etcd. Cheap at cluster-init; turning it on
+# later means re-encrypting the Secrets already stored.
+k3s_server_secrets_encryption: true
+
+# Bundled components to leave out, e.g. [traefik, servicelb]. Empty keeps
+# the k3s defaults. Nothing is disabled until an ADR covers ingress.
+k3s_server_disable: []
+
+# Extra SANs on the API server certificate, on top of this node's Tailscale
+# IP and MagicDNS name, which are always included.
+k3s_server_extra_tls_sans: []
+
+# Where the admin kubeconfig lands on the machine running Ansible, fetched
+# from the first server only. It is cluster-admin; treat it as a private key.
+k3s_server_fetch_kubeconfig: true
+k3s_server_kubeconfig_local_path: "{{ lookup('env', 'HOME') }}/.kube/k3s-homelab.yaml"
+k3s_server_kubeconfig_context: k3s-homelab
+
+# Seconds to wait for the API server to answer and the node to go Ready.
+# Joining over squadron's link can be slow.
+k3s_server_ready_timeout: 300

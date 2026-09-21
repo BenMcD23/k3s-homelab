@@ -1,0 +1,46 @@
+---
+- name: Assert exactly one host is designated the first server
+  ansible.builtin.assert:
+    that:
+      - (groups['k3s_first_server'] | default([])) | length == 1
+    fail_msg: >-
+      The k3s_first_server inventory group must hold exactly one host. It
+      decides which node runs --cluster-init, and only one node can do that
+      (ADR 0001).
+    success_msg: "First server is {{ k3s_server_first_host }}"
+  run_once: true
+
+- name: Assert a cluster token is available
+  ansible.builtin.assert:
+    that:
+      - k3s_server_token | length > 0
+    fail_msg: >-
+      k3s_token is not set. Generate one with "openssl rand -hex 32" and
+      put it in inventory/group_vars/all/secrets.sops.yaml. Every server
+      needs the same value - a node joining with a different token is
+      rejected.
+    quiet: true
+
+- name: Assert this node has a workload role
+  ansible.builtin.assert:
+    that:
+      - node_role is defined
+      - node_role | length > 0
+    fail_msg: >-
+      node_role is not set for {{ inventory_hostname }}. It becomes the
+      role= node label that every workload selects on (ADR 0004).
+    quiet: true
+
+# Catches a stale inventory address before k3s binds to it. An address the
+# machine does not hold gives a cluster that starts but cannot talk to
+# itself, which is slower to debug than a failed assert.
+- name: Assert the inventory address is a Tailscale address on this host
+  ansible.builtin.assert:
+    that:
+      - "'tailscale0' in ansible_interfaces"
+      - k3s_server_node_ip in ansible_all_ipv4_addresses
+    fail_msg: >-
+      {{ k3s_server_node_ip }} is not an address on {{ inventory_hostname }}.
+      Check the real one with "tailscale ip -4" on the host and fix
+      ansible_host in inventory/hosts.yml.
+    quiet: true

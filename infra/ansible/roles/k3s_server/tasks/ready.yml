@@ -1,0 +1,19 @@
+---
+- name: Wait for the kube-apiserver on this node
+  ansible.builtin.wait_for:
+    host: "{{ k3s_server_node_ip }}"
+    port: 6443
+    timeout: "{{ k3s_server_ready_timeout }}"
+
+# The Node object appears shortly after the API starts answering, and later
+# still on a join, so retry rather than fail on the first miss.
+- name: Wait for this node to report Ready
+  ansible.builtin.command:
+    cmd: "k3s kubectl wait --for=condition=Ready node/{{ k3s_server_node_name }} --timeout=30s"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: k3s_server_ready
+  changed_when: false
+  until: k3s_server_ready.rc == 0
+  retries: 10
+  delay: 15

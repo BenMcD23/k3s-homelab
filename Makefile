@@ -3,7 +3,7 @@
 TF_DIR := infra/terraform/oracle
 ANSIBLE_DIR := infra/ansible
 
-.PHONY: help deps fmt lint validate plan apply
+.PHONY: help deps fmt lint validate plan apply base cluster
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
@@ -25,5 +25,11 @@ validate: ## Validate terraform config and ansible syntax
 plan: ## Terraform plan - adopts existing OCI infra on first run
 	cd $(TF_DIR) && terraform plan
 
-apply: ## Run the ansible base role against all nodes
+apply: ## Run the whole playbook - base role, then k3s bring-up
 	cd $(ANSIBLE_DIR) && ansible-playbook site.yml
+
+base: ## Host prep only, no k3s
+	cd $(ANSIBLE_DIR) && ansible-playbook site.yml --tags base
+
+cluster: ## k3s bring-up only - the base role must have run first
+	cd $(ANSIBLE_DIR) && ansible-playbook site.yml --tags k3s

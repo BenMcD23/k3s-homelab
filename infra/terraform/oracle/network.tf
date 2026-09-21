@@ -1,5 +1,5 @@
-# Existing network. These resources DESCRIBE what is already deployed -
-# they are adopted into state via the import blocks below, never created.
+# Existing network. These resources describe what is already deployed and
+# are adopted into state by the import blocks in imports.tf, never created.
 
 resource "oci_core_vcn" "k8s" {
   compartment_id = var.compartment_ocid
@@ -24,15 +24,14 @@ resource "oci_core_subnet" "k8s" {
   }
 }
 
-# Mirrors the live rules exactly as of adoption.
+# Mirrors the live rules as of adoption.
 #
-# NOTE: ingress rule 4 below allows ALL TCP ports from 0.0.0.0/0. That is
-# the live configuration, reproduced here deliberately rather than quietly
-# "fixed" - this config adopts reality, it does not reshape it. What
-# actually restricts inbound traffic on this host is the OS-level iptables
-# ruleset in /etc/iptables/rules.v4 (see the ansible base role), which
-# rejects everything except port 22 regardless of what this list permits.
-# Tightening this rule is a separate, deliberate change - see README.
+# Note the fourth ingress rule allows all TCP ports from 0.0.0.0/0. That is
+# the live configuration, copied here rather than changed, since this config
+# adopts existing infrastructure. Inbound traffic is actually restricted by
+# the host's iptables ruleset in /etc/iptables/rules.v4 (see the ansible base
+# role), which rejects everything except port 22. Tightening this rule is a
+# separate change, see README.
 resource "oci_core_security_list" "k8s" {
   compartment_id = var.compartment_ocid
   vcn_id         = oci_core_vcn.k8s.id
@@ -83,7 +82,7 @@ resource "oci_core_security_list" "k8s" {
     }
   }
 
-  # All TCP, all ports, from anywhere. See NOTE above.
+  # All TCP, all ports, from anywhere. See the note above.
   ingress_security_rules {
     source      = "0.0.0.0/0"
     source_type = "CIDR_BLOCK"

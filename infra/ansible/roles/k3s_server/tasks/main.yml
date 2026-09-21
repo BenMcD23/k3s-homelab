@@ -1,0 +1,40 @@
+---
+- name: Include preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+  tags: [preflight]
+
+# Joining a server that is not answering yet can leave a half-registered
+# etcd member behind.
+- name: Wait for the first server's API before joining
+  ansible.builtin.wait_for:
+    host: "{{ k3s_server_first_ip }}"
+    port: 6443
+    timeout: "{{ k3s_server_ready_timeout }}"
+  when: not (k3s_server_is_first | bool)
+
+- name: Include k3s configuration
+  ansible.builtin.import_tasks: config.yml
+  tags: [config]
+
+- name: Include k3s install
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+
+# Handlers normally run at the end of the play, but a pending config change
+# has to land before the readiness checks below.
+- name: Apply any pending k3s restart now
+  ansible.builtin.meta: flush_handlers
+
+- name: Include readiness wait
+  ansible.builtin.import_tasks: ready.yml
+
+- name: Include node labelling
+  ansible.builtin.import_tasks: labels.yml
+  tags: [labels]
+
+- name: Include kubeconfig fetch
+  ansible.builtin.import_tasks: kubeconfig.yml
+  when:
+    - k3s_server_is_first | bool
+    - k3s_server_fetch_kubeconfig | bool
+  tags: [kubeconfig]

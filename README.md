@@ -4,9 +4,11 @@ Three-node k3s cluster with embedded etcd, meshed over Tailscale.
 Infrastructure as code: Terraform for the Oracle Cloud node, Ansible for
 host configuration, ArgoCD (later) for workloads.
 
-**Current state: scaffolding.** No k3s is installed by anything in this
-repo yet. The Ansible `base` role prepares hosts; cluster bring-up is the
-next piece of work.
+**Current state: bring-up is written, not yet run.** The `base` role
+prepares hosts and the `k3s_server` role stands up the three-server
+cluster. Neither the cluster nor anything on it exists yet — running
+`make apply` against the real nodes is the next step. Workloads (ArgoCD,
+GPU scheduling) come after.
 
 ## Nodes
 
@@ -24,7 +26,9 @@ or public addresses.
 
 ```
 infra/terraform/oracle/   Adopts the existing OCI instance/VCN/subnet/security list
-infra/ansible/            Inventory + base role (users, SSH, swap, sysctls, chrony, Tailscale)
+infra/ansible/            Inventory + roles
+  roles/base/               Users, SSH, swap, sysctls, chrony, Tailscale
+  roles/k3s_server/         k3s servers with embedded etcd, bound to the tailnet
 docs/decisions/           ADRs
 clusters/prod/            Placeholder for ArgoCD app-of-apps
 ```
@@ -57,7 +61,11 @@ age-keygen -o ~/.config/sops/age/keys.txt     # once, keep the private half safe
 
 cp infra/ansible/inventory/group_vars/all/secrets.sops.yaml.example \
    infra/ansible/inventory/group_vars/all/secrets.sops.yaml
-# fill in the Tailscale auth key, then:
+
+# Two keys to fill in: the Tailscale auth key, and the k3s cluster token.
+# Generate the token once - every server must share the same value:
+openssl rand -hex 32
+
 sops --encrypt --in-place infra/ansible/inventory/group_vars/all/secrets.sops.yaml
 ```
 
@@ -114,8 +122,14 @@ Tightening the security list is a deliberate separate change.
 ```bash
 make lint        # ansible-lint
 make validate    # terraform validate + ansible syntax check
-make apply       # run the base role against all three nodes
+make base        # host prep only
+make cluster     # k3s bring-up only
+make apply       # everything: base role, then the cluster
 ```
+
+`site.yml` is three plays: the `base` role across all nodes, then the
+first k3s server, then the rest joining it one at a time. The split is
+what enforces bring-up order — see below.
 
 The `base` role is idempotent and safe to re-run. It covers: SSH key +
 passwordless sudo, SSH hardening, unattended-upgrades, swap off
@@ -146,6 +160,86 @@ ansible-playbook site.yml --limit oracle --tags tailscale
 Confirm key auth works before running this against a machine you cannot
 easily get to in person, squadron especially. Otherwise run with
 `-e base_harden_ssh=false` and turn it on once you are sure.
+
+## Cluster bring-up
+
+```bash
+make cluster        # or: ansible-playbook site.yml --tags k3s
+```
+
+Three servers, all running embedded etcd, quorum 2 of 3 ([ADR
+0001](docs/decisions/0001-etcd-topology.md)). Order is enforced by the
+play structure rather than by remembering to do it right: home is in the
+`k3s_first_server` inventory group and bootstraps with `cluster-init`,
+then `k3s_additional_servers` (squadron, oracle) join it `serial: 1`, one
+at a time.
+
+The token is pre-shared from SOPS rather than scraped off home after the
+fact, so all three nodes can be configured in one pass and a rebuilt node
+rejoins without a new secret.
+
+Everything binds to the tailnet. `node-ip`, `advertise-address` and the
+API server's certificate SANs come from each host's `ansible_host`, which
+is its Tailscale IP, and flannel is pinned to `tailscale0`. Before
+installing anything the role asserts that address is actually present on
+the machine — a stale inventory IP otherwise produces a cluster that comes
+up and then cannot talk to itself.
+
+`--cluster-init` is not set from a flag anyone can pass. It comes from
+inventory group membership, so there is one source of truth for which node
+bootstraps and no way to hand it to a second node by accident.
+
+### Node names and labels
+
+Nodes register as `home`, `squadron` and `oracle` — the inventory aliases,
+not the machine hostnames (`home-server`, `317server`, `k8s-node`). That
+is `k3s_server_node_name`, set so the cluster matches what ADRs 0003 and
+0004 already say. Changing it after a node has registered leaves the old
+Node object behind.
+
+Each node carries `role=<node_role>` from the inventory, per [ADR
+0004](docs/decisions/0004-workload-placement.md). k3s only applies
+`node-label` at first registration, so the role also reconciles it on
+every run with `kubectl label --overwrite`. Changing `node_role` in the
+inventory and re-running is enough to move a node's placement.
+
+### kubeconfig
+
+The first server's kubeconfig is fetched to
+`~/.kube/k3s-homelab.yaml`, repointed from `127.0.0.1` to home's Tailscale
+IP, and its cluster/user/context renamed off `default` so it can be merged
+with other kubeconfigs:
+
+```bash
+export KUBECONFIG=~/.kube/k3s-homelab.yaml
+kubectl get nodes -o wide
+```
+
+It is cluster-admin. Treat it like a private key — it is written `0600`
+and is outside the repo. Set `k3s_server_fetch_kubeconfig: false` to skip
+this.
+
+### Version pinning
+
+`k3s_server_version` in `roles/k3s_server/defaults/main.yml` pins the
+release. Unpinned would mean a routine re-run could upgrade the cluster
+underneath you. Bump that one line to upgrade deliberately; the installer
+replaces the binary and restarts the service, and the config file is left
+alone.
+
+### Things not decided yet
+
+- `k3s_server_disable` is empty, so traefik, servicelb, local-path and
+  metrics-server all install. No ADR covers ingress yet. If ArgoCD is
+  going to bring its own, disabling traefik is cheaper before anything
+  depends on it than after.
+- `secrets-encryption` is on. It is free at `cluster-init` and means
+  re-encrypting every existing Secret if turned on later.
+- etcd snapshots are k3s defaults: every 12h, 5 retained, **on local disk
+  only**. A node that dies takes its snapshots with it. Off-node snapshot
+  storage is unbuilt.
+- oracle is 1 OCPU. It is a full etcd member and may log slow-fsync
+  warnings under load. Expected, not a fault.
 
 ## Rebuilding a node from scratch
 
@@ -179,8 +273,12 @@ sudo tailscale up --ssh
 ...or run the role once over the LAN address and let it do the enrolment:
 
 ```bash
-ansible-playbook site.yml --limit home -e ansible_host=192.168.1.x
+ansible-playbook site.yml --limit home --tags base -e ansible_host=192.168.1.x
 ```
+
+`--tags base` matters here. Without it the k3s play would run too, and
+k3s would bind itself to the LAN address you passed in rather than the
+node's Tailscale IP.
 
 Set the machine's hostname to match the inventory (`home-server`,
 `317server`, `k8s-node`) — MagicDNS names derive from it.
@@ -188,17 +286,23 @@ Set the machine's hostname to match the inventory (`home-server`,
 **3. Run the base role.**
 
 ```bash
-ansible-playbook site.yml --limit <alias>
+ansible-playbook site.yml --limit <alias> --tags base
 ```
 
-**4. Rejoin the cluster.** For a replaced node, remove the old etcd member
-before the new one joins, or etcd will count a member that's never coming
-back toward quorum:
+**4. Rejoin the cluster.** Remove the old etcd member first, or etcd
+counts a member that is never coming back toward quorum:
 
 ```bash
-kubectl delete node <name>            # from a surviving node
-k3s server --server https://<home-tailnet-ip>:6443 --token <token>
+kubectl delete node <alias>                                  # from a surviving node
+ansible-playbook site.yml --limit <alias> --tags k3s         # rejoins with the same token
 ```
+
+The token is the one already in SOPS, so a rebuilt node rejoins with no
+new secret to distribute. If the node being rebuilt is **home**, it does
+not re-run `--cluster-init` — the cluster already exists, and the play
+treats it as a rejoin like any other. Moving which node bootstraps means
+editing `k3s_first_server` in the inventory, and that is only ever
+correct for a cluster being built from nothing.
 
 ### Oracle is the exception
 

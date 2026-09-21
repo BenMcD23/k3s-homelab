@@ -1,12 +1,11 @@
 ---
-# The Oracle Minimal image ships without curl, chrony, or
-# unattended-upgrades. Nothing below may assume they exist.
+# The Oracle Minimal image ships without curl, chrony or
+# unattended-upgrades, so they are installed here rather than assumed.
 #
-# iptables-persistent is deliberately NOT installed. Nothing in this role
-# writes iptables rules, oracle already has /etc/iptables/rules.v4 from its
-# stock image, and installing it on a Docker host saves Docker's runtime
-# chains to disk and restores them at boot, which conflicts with the ones
-# dockerd recreates for itself.
+# iptables-persistent is not installed: nothing in this role writes iptables
+# rules, oracle already has /etc/iptables/rules.v4 from its stock image, and
+# on a Docker host it saves Docker's runtime chains to disk and restores them
+# at boot, conflicting with the ones dockerd recreates for itself.
 - name: Install base packages
   ansible.builtin.apt:
     name:

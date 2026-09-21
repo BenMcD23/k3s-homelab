@@ -1,12 +1,12 @@
 ---
 # The stock OCI Ubuntu image ships /etc/iptables/rules.v4 with a default
-# REJECT for inbound traffic, allowing only port 22. This is enforced on
-# the host and is INDEPENDENT of the console security list - a port opened
-# in the security list is still dropped here. This is the rule that
-# actually governs what reaches k3s on this node.
+# REJECT for inbound traffic, allowing only port 22. It is enforced on the
+# host, independently of the console security list: a port opened in the
+# security list is still dropped here. This is what governs what reaches
+# k3s on this node.
 #
-# Tailscale inserts its own chains (ts-input, ts-forward) at runtime and
-# they are jumped to BEFORE the final REJECT:
+# Tailscale inserts its own chains (ts-input, ts-forward) at runtime, jumped
+# to before the final REJECT:
 #
 #   -A INPUT -j ts-input
 #   -A ts-input -i tailscale0 -j ACCEPT          <- all tailnet traffic
@@ -14,15 +14,14 @@
 #   ...
 #   -A INPUT -j REJECT --reject-with icmp-host-prohibited
 #
-# Because every k3s port (6443, 2379-2380, 10250, VXLAN 8472) travels over
-# tailscale0, it is accepted by that blanket rule before ever reaching the
-# REJECT. tailscaled recreates these chains on every start, so they do NOT
-# need persisting to rules.v4 - and must not be, or a stale copy will
-# conflict with the live set.
+# Every k3s port (6443, 2379-2380, 10250, VXLAN 8472) travels over
+# tailscale0, so it is accepted before reaching the REJECT. tailscaled
+# recreates these chains on every start, so they must not be persisted to
+# rules.v4 - a stale copy there conflicts with the live set.
 #
-# So the correct action here is to leave the ruleset alone and assert that
-# it still looks the way the cluster depends on. If these assertions fail,
-# something changed the firewall and k3s traffic may be silently dropped.
+# Nothing here changes the ruleset. These tasks only assert it still looks
+# the way the cluster needs; if they fail, something changed the firewall
+# and k3s traffic may be dropped.
 
 - name: Read current iptables ruleset
   ansible.builtin.command: iptables -S
