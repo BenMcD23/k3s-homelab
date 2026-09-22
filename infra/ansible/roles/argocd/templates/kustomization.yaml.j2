@@ -1,0 +1,54 @@
+# Managed by Ansible - roles/argocd/templates/kustomization.yaml.j2
+# Edits here are overwritten on the next run. Change the role instead.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: {{ argocd_namespace }}
+
+resources:
+  - namespace.yaml
+  - install.yaml
+
+patches:
+  # ADR 0004: Argo CD is used by a person directly, so it is pinned to the
+  # interactive node instead of being spread by available capacity. Left to
+  # the scheduler it lands wherever there is room - including squadron,
+  # whose link is the one that goes away.
+  #
+  # Targeting by kind rather than by name so a component added in a later
+  # Argo CD release is pinned too, instead of quietly landing elsewhere.
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          role: {{ argocd_node_role }}
+  - target:
+      kind: StatefulSet
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          role: {{ argocd_node_role }}
+{% if argocd_expose != 'cluster' %}
+
+  # TLS is terminated by the Tailscale proxy in front of argocd-server, so
+  # the server itself serves plain HTTP. Without this it answers HTTPS on
+  # the same port and redirects the proxy's plaintext request back to
+  # itself, which is the classic Argo CD redirect loop behind an ingress.
+  #
+  # The Deployment reads this through a configMapKeyRef, which is only
+  # evaluated when the pod starts - so tasks/install.yml restarts
+  # argocd-server whenever these manifests change.
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        # No namespace: upstream's resources carry none, and kustomize
+        # matches patches before its namespace transformer runs. Naming one
+        # here makes the patch match nothing, which is a hard error.
+        name: argocd-cmd-params-cm
+      data:
+        server.insecure: "true"
+{% endif %}

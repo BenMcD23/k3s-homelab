@@ -1,0 +1,12 @@
+---
+# server.insecure reaches the container through a configMapKeyRef, which is
+# read once at pod start - so a ConfigMap-only change leaves the running
+# server on its old setting until something restarts it. A Deployment change
+# would have rolled the pod by itself; this covers the case where nothing
+# else did.
+- name: Restart argocd-server
+  ansible.builtin.command:
+    cmd: "k3s kubectl -n {{ argocd_namespace }} rollout restart deployment/argocd-server"
+  environment:
+    KUBECONFIG: "{{ argocd_kubeconfig }}"
+  changed_when: true

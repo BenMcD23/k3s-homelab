@@ -1,0 +1,63 @@
+---
+- name: Download the Tailscale operator manifest for {{ tailscale_operator_version }}
+  ansible.builtin.get_url:
+    url: "{{ tailscale_operator_manifest_url }}"
+    dest: "{{ tailscale_operator_bootstrap_dir }}/operator.yaml"
+    checksum: "{{ tailscale_operator_manifest_checksum }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Write the kustomization
+  ansible.builtin.template:
+    src: kustomization.yaml.j2
+    dest: "{{ tailscale_operator_bootstrap_dir }}/kustomization.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+
+# Same reasoning as the Argo CD role: server-side apply, with diff first so
+# a no-op run reports no change. Exit 1 means there is something to apply,
+# 0 means there is not, anything else falls through to applying.
+- name: Check whether the operator manifests are already applied
+  ansible.builtin.command:
+    cmd: "k3s kubectl diff -k {{ tailscale_operator_bootstrap_dir }} --server-side --force-conflicts"
+  environment:
+    KUBECONFIG: "{{ tailscale_operator_kubeconfig }}"
+  register: tailscale_operator_diff
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Apply the operator manifests
+  ansible.builtin.command:
+    cmd: "k3s kubectl apply -k {{ tailscale_operator_bootstrap_dir }} --server-side --force-conflicts"
+  environment:
+    KUBECONFIG: "{{ tailscale_operator_kubeconfig }}"
+  when: tailscale_operator_diff.rc != 0
+  changed_when: true
+
+# PROXY_DEFAULT_CLASS names this, so it has to exist for the operator to
+# place proxy pods. Its CRD arrives with the manifest above.
+- name: Wait for the ProxyClass CRD to be established
+  ansible.builtin.command:
+    cmd: "k3s kubectl wait --for=condition=Established crd/proxyclasses.tailscale.com --timeout=60s"
+  environment:
+    KUBECONFIG: "{{ tailscale_operator_kubeconfig }}"
+  changed_when: false
+
+- name: Write the ProxyClass
+  ansible.builtin.template:
+    src: proxyclass.yaml.j2
+    dest: "{{ tailscale_operator_bootstrap_dir }}/proxyclass.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Apply the ProxyClass
+  ansible.builtin.command:
+    cmd: "k3s kubectl apply -f {{ tailscale_operator_bootstrap_dir }}/proxyclass.yaml"
+  environment:
+    KUBECONFIG: "{{ tailscale_operator_kubeconfig }}"
+  register: tailscale_operator_proxyclass
+  changed_when: "'unchanged' not in tailscale_operator_proxyclass.stdout"

@@ -1,0 +1,37 @@
+# Managed by Ansible - roles/argocd/templates/ingress.yaml.j2
+# Edits here are overwritten on the next run. Change the role instead.
+#
+# ingressClassName: tailscale hands this to the Tailscale operator, which
+# gives Argo CD its own device on the tailnet - its own name, its own
+# Let's Encrypt certificate, its own place in the device list. Nothing is
+# published on any node, so there is no NodePort on a LAN interface and no
+# ingress controller in the path.
+#
+# The operator reads the device name from spec.tls[0].hosts[0], taking the
+# first label and completing it with the tailnet's own name. So "argocd"
+# here becomes {{ argocd_tailnet_host }}.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server
+  namespace: {{ argocd_namespace }}
+{% if argocd_expose == 'funnel' %}
+  annotations:
+    # Puts this on the public internet, not just the tailnet. Read ADR 0005
+    # before setting argocd_expose=funnel - this is a cluster-admin login
+    # page.
+    tailscale.com/funnel: "true"
+{% endif %}
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: argocd-server
+      port:
+        # Port 80 on the Service, which is argocd-server in insecure mode.
+        # TLS is terminated by the Tailscale proxy in front of it; see the
+        # server.insecure patch in kustomization.yaml.j2.
+        number: 80
+  tls:
+    - hosts:
+        - {{ argocd_hostname }}

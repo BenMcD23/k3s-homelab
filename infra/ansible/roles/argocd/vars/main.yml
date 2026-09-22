@@ -1,0 +1,11 @@
+---
+# In vars/ rather than defaults/: derived from settings above, and
+# overriding one on its own would put the Ingress and the URL out of step.
+
+# What the operator will register on the tailnet. The tailnet half comes
+# from the inventory, so renaming the tailnet is a one-line change there.
+argocd_tailnet_host: "{{ argocd_hostname }}.{{ tailnet }}"
+
+argocd_url: "https://{{ argocd_tailnet_host }}"
+
+argocd_kubeconfig: /etc/rancher/k3s/k3s.yaml

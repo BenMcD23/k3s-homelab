@@ -1,0 +1,61 @@
+---
+# Publishing is the Tailscale operator's job. It watches for Ingresses with
+# ingressClassName: tailscale and gives each one its own device on the
+# tailnet, with its own name and its own Let's Encrypt certificate. Nothing
+# is bound on a node, so there is no port on a LAN interface to reason
+# about, and the URL does not carry a node's hostname.
+#
+# Two things have to be in place in the Tailscale admin console first and
+# cannot be done from here: tagOwners for tag:k8s-operator and tag:k8s in
+# the ACL policy, and (for funnel) the funnel node attribute. The
+# tailscale_operator role checks what it can and says so in its logs.
+
+- name: Write the Argo CD Ingress
+  ansible.builtin.template:
+    src: ingress.yaml.j2
+    dest: "{{ argocd_bootstrap_dir }}/ingress.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+  when: argocd_expose != 'cluster'
+
+- name: Publish Argo CD on {{ 'the public internet' if argocd_expose == 'funnel' else 'the tailnet' }}
+  ansible.builtin.command:
+    cmd: "k3s kubectl apply -f {{ argocd_bootstrap_dir }}/ingress.yaml"
+  environment:
+    KUBECONFIG: "{{ argocd_kubeconfig }}"
+  register: argocd_ingress
+  changed_when: "'unchanged' not in argocd_ingress.stdout"
+  when: argocd_expose != 'cluster'
+
+# Reversible: lowering argocd_expose to "cluster" takes the device off the
+# tailnet rather than leaving it up. Deleting the Ingress is what tells the
+# operator to tear the proxy down and release the name.
+- name: Withdraw Argo CD from the tailnet
+  ansible.builtin.command:
+    cmd: >-
+      k3s kubectl -n {{ argocd_namespace }} delete ingress argocd-server
+      --ignore-not-found
+  environment:
+    KUBECONFIG: "{{ argocd_kubeconfig }}"
+  register: argocd_ingress_delete
+  changed_when: "'deleted' in argocd_ingress_delete.stdout"
+  when: argocd_expose == 'cluster'
+
+# The operator writes the device's name back onto the Ingress once the
+# proxy is up and the certificate has been issued. Until that happens the
+# URL does not resolve, so waiting here means a green run is one where the
+# UI is actually reachable.
+- name: Wait for the tailnet device to be registered
+  ansible.builtin.command:
+    cmd: >-
+      k3s kubectl -n {{ argocd_namespace }} get ingress argocd-server
+      -o jsonpath={.status.loadBalancer.ingress[0].hostname}
+  environment:
+    KUBECONFIG: "{{ argocd_kubeconfig }}"
+  register: argocd_ingress_host
+  changed_when: false
+  until: argocd_ingress_host.stdout | length > 0
+  retries: "{{ (argocd_ready_timeout | int / 15) | round(0, 'ceil') | int }}"
+  delay: 15
+  when: argocd_expose != 'cluster'

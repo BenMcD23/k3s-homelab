@@ -1,0 +1,66 @@
+---
+- name: Assert the operator is being installed from the first server
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname in (groups['k3s_first_server'] | default([]))
+    fail_msg: >-
+      This role applies cluster-wide manifests and must run from exactly one
+      node, for the same reason --cluster-init does (ADR 0001).
+    quiet: true
+
+- name: Assert the Tailscale OAuth client is available
+  ansible.builtin.assert:
+    that:
+      - tailscale_operator_oauth_client_id | length > 0
+      - tailscale_operator_oauth_client_secret | length > 0
+    fail_msg: >-
+      tailscale_oauth_client_id / tailscale_oauth_client_secret are not set.
+      Create an OAuth client at
+      https://login.tailscale.com/admin/settings/oauth with the auth_keys
+      write scope and the tag:k8s-operator tag, then put both halves in
+      inventory/group_vars/all/secrets.sops.yaml. Without them the operator
+      starts and never authenticates.
+    quiet: true
+
+- name: Check for the cluster kubeconfig
+  ansible.builtin.stat:
+    path: "{{ tailscale_operator_kubeconfig }}"
+  register: tailscale_operator_kubeconfig_stat
+
+- name: Assert k3s is installed on this node
+  ansible.builtin.assert:
+    that:
+      - tailscale_operator_kubeconfig_stat.stat.exists
+    fail_msg: >-
+      {{ tailscale_operator_kubeconfig }} is missing, so k3s has not come up
+      on {{ inventory_hostname }}. Run "make cluster" first.
+    quiet: true
+
+# The operator and every proxy pod select on role=<node_role> (ADR 0004).
+# Without a node carrying it they sit Pending, which reads as a broken
+# install rather than a missing label.
+- name: Find nodes carrying the placement labels
+  ansible.builtin.command:
+    cmd: "k3s kubectl get nodes -l role={{ item }} -o name"
+  environment:
+    KUBECONFIG: "{{ tailscale_operator_kubeconfig }}"
+  register: tailscale_operator_placement_nodes
+  changed_when: false
+  check_mode: false
+  loop:
+    - "{{ tailscale_operator_node_role }}"
+    - "{{ tailscale_operator_proxy_node_role }}"
+
+- name: Assert some node can run the operator and its proxies
+  ansible.builtin.assert:
+    that:
+      - item.stdout | length > 0
+    fail_msg: >-
+      No node is labelled role={{ item.item }}, so those pods would stay
+      Pending. The k3s_server role applies this label from node_role in the
+      inventory - re-run "make cluster", or point the role at a role that
+      exists.
+    quiet: true
+  loop: "{{ tailscale_operator_placement_nodes.results }}"
+  loop_control:
+    label: "role={{ item.item }}"

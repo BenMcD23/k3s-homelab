@@ -1,0 +1,17 @@
+# Managed by Ansible - roles/tailscale_operator/templates/proxyclass.yaml.j2
+# Edits here are overwritten on the next run. Change the role instead.
+#
+# Set as the operator's PROXY_DEFAULT_CLASS, so it governs every proxy pod
+# rather than only the ones that remember to ask for it. A proxy pod is
+# where traffic for a published service actually lands, which makes it
+# user-facing whatever the service behind it is - so it belongs on the
+# interactive node and not wherever there is room (ADR 0004).
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: {{ tailscale_operator_proxy_class }}
+spec:
+  statefulSet:
+    pod:
+      nodeSelector:
+        role: {{ tailscale_operator_proxy_node_role }}
