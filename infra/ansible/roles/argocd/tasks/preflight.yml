@@ -1,0 +1,77 @@
+---
+- name: Assert Argo CD is being installed from the first server
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname in (groups['k3s_first_server'] | default([]))
+    fail_msg: >-
+      This role applies cluster-wide manifests and must run from exactly one
+      node. It is bound to k3s_first_server for the same reason --cluster-init
+      is (ADR 0001) - so there is one source of truth and no way to run it
+      twice by accident.
+    quiet: true
+
+- name: Assert the exposure mode is one this role knows
+  ansible.builtin.assert:
+    that:
+      - argocd_expose in ['cluster', 'tailnet', 'funnel']
+    fail_msg: >-
+      argocd_expose must be cluster, tailnet or funnel. Got
+      "{{ argocd_expose }}". See ADR 0005 for what each one means.
+    quiet: true
+
+- name: Check for the cluster kubeconfig
+  ansible.builtin.stat:
+    path: "{{ argocd_kubeconfig }}"
+  register: argocd_kubeconfig_stat
+
+- name: Assert k3s is installed on this node
+  ansible.builtin.assert:
+    that:
+      - argocd_kubeconfig_stat.stat.exists
+    fail_msg: >-
+      {{ argocd_kubeconfig }} is missing, so k3s has not come up on
+      {{ inventory_hostname }}. Run "make cluster" before "make argocd".
+    quiet: true
+
+# Argo CD's pods select on role=<argocd_node_role> (ADR 0004). If no node
+# carries it they sit Pending, which looks like a broken install rather than
+# a missing label.
+- name: Find nodes carrying the placement label
+  ansible.builtin.command:
+    cmd: "k3s kubectl get nodes -l role={{ argocd_node_role }} -o name"
+  environment:
+    KUBECONFIG: "{{ argocd_kubeconfig }}"
+  register: argocd_placement_nodes
+  changed_when: false
+  check_mode: false
+
+- name: Assert some node can run Argo CD
+  ansible.builtin.assert:
+    that:
+      - argocd_placement_nodes.stdout | length > 0
+    fail_msg: >-
+      No node is labelled role={{ argocd_node_role }}, so every Argo CD pod
+      would stay Pending. The k3s_server role applies this label from
+      node_role in the inventory - re-run "make cluster", or set
+      argocd_node_role to a role that exists.
+    quiet: true
+
+- name: Check that Tailscale is available for publishing the UI
+  ansible.builtin.command: tailscale status --json
+  register: argocd_tailscale_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: argocd_expose != 'cluster'
+
+- name: Assert this node is on the tailnet
+  ansible.builtin.assert:
+    that:
+      - argocd_tailscale_status.rc == 0
+      - (argocd_tailscale_status.stdout | from_json).BackendState | default('') == 'Running'
+    fail_msg: >-
+      tailscaled is not running on {{ inventory_hostname }}, so the UI cannot
+      be published (argocd_expose={{ argocd_expose }}). Run the base role
+      first, or set argocd_expose=cluster.
+    quiet: true
+  when: argocd_expose != 'cluster'

@@ -23,3 +23,14 @@
   tags: [k3s]
   roles:
     - k3s_server
+
+# Argo CD is the one workload Ansible installs, because nothing else can:
+# it is what installs everything after it (ADR 0005). Bound to
+# k3s_first_server so the cluster-wide manifests are applied from exactly
+# one place.
+- name: Install Argo CD
+  hosts: k3s_first_server
+  become: true
+  tags: [argocd]
+  roles:
+    - argocd

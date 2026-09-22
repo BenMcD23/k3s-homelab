@@ -1,0 +1,65 @@
+---
+- name: Ensure the Argo CD staging directory exists
+  ansible.builtin.file:
+    path: "{{ argocd_bootstrap_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+# Fetched to the node and checksummed rather than referenced as a remote
+# kustomize base, so what gets applied is a file that can be read and
+# diffed afterwards.
+- name: Download the Argo CD install manifest for {{ argocd_version }}
+  ansible.builtin.get_url:
+    url: "{{ argocd_install_manifest_url }}"
+    dest: "{{ argocd_bootstrap_dir }}/install.yaml"
+    checksum: "{{ argocd_install_manifest_checksum }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+# install.yaml ships no Namespace of its own - upstream expects -n argocd on
+# the command line. Creating it as a resource keeps the whole install in one
+# kustomize apply.
+- name: Write the namespace manifest
+  ansible.builtin.template:
+    src: namespace.yaml.j2
+    dest: "{{ argocd_bootstrap_dir }}/namespace.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Write the kustomization
+  ansible.builtin.template:
+    src: kustomization.yaml.j2
+    dest: "{{ argocd_bootstrap_dir }}/kustomization.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+
+# Server-side apply is not a preference here. The applicationsets CRD is
+# 1.4MB, and a client-side apply stores the whole manifest in a
+# last-applied-configuration annotation, which fails the 256KB annotation
+# limit outright.
+#
+# diff first so a no-op run reports no change. It exits 1 when there is
+# something to apply and 0 when there is not; anything else (no diff binary,
+# an API blip) falls through to applying, which is harmless either way.
+- name: Check whether the Argo CD manifests are already applied
+  ansible.builtin.command:
+    cmd: "k3s kubectl diff -k {{ argocd_bootstrap_dir }} --server-side --force-conflicts"
+  environment:
+    KUBECONFIG: "{{ argocd_kubeconfig }}"
+  register: argocd_manifest_diff
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Apply the Argo CD manifests
+  ansible.builtin.command:
+    cmd: "k3s kubectl apply -k {{ argocd_bootstrap_dir }} --server-side --force-conflicts"
+  environment:
+    KUBECONFIG: "{{ argocd_kubeconfig }}"
+  when: argocd_manifest_diff.rc != 0
+  changed_when: true

@@ -2,13 +2,14 @@
 
 Three-node k3s cluster with embedded etcd, meshed over Tailscale.
 Infrastructure as code: Terraform for the Oracle Cloud node, Ansible for
-host configuration, ArgoCD (later) for workloads.
+host configuration, ArgoCD for workloads.
 
 **Current state: bring-up is written, not yet run.** The `base` role
-prepares hosts and the `k3s_server` role stands up the three-server
-cluster. Neither the cluster nor anything on it exists yet — running
-`make apply` against the real nodes is the next step. Workloads (ArgoCD,
-GPU scheduling) come after.
+prepares hosts, the `k3s_server` role stands up the three-server cluster,
+and the `argocd` role bootstraps ArgoCD onto it. Neither the cluster nor
+anything on it exists yet — running `make apply` against the real nodes is
+the next step. Workloads (GPU scheduling, and anything under
+`clusters/prod/`) come after.
 
 ## Nodes
 
@@ -29,8 +30,9 @@ infra/terraform/oracle/   Adopts the existing OCI instance/VCN/subnet/security l
 infra/ansible/            Inventory + roles
   roles/base/               Users, SSH, swap, sysctls, chrony, Tailscale
   roles/k3s_server/         k3s servers with embedded etcd, bound to the tailnet
+  roles/argocd/             ArgoCD bootstrap, published over Tailscale
 docs/decisions/           ADRs
-clusters/prod/            Placeholder for ArgoCD app-of-apps
+clusters/prod/            What ArgoCD deploys - the app-of-apps root points here
 ```
 
 ## Prerequisites
@@ -124,12 +126,13 @@ make lint        # ansible-lint
 make validate    # terraform validate + ansible syntax check
 make base        # host prep only
 make cluster     # k3s bring-up only
-make apply       # everything: base role, then the cluster
+make argocd      # ArgoCD bootstrap only
+make apply       # everything: base role, the cluster, then ArgoCD
 ```
 
-`site.yml` is three plays: the `base` role across all nodes, then the
-first k3s server, then the rest joining it one at a time. The split is
-what enforces bring-up order — see below.
+`site.yml` is four plays: the `base` role across all nodes, then the
+first k3s server, then the rest joining it one at a time, then ArgoCD on
+the first server. The split is what enforces bring-up order — see below.
 
 The `base` role is idempotent and safe to re-run. It covers: SSH key +
 passwordless sudo, SSH hardening, unattended-upgrades, swap off
@@ -230,9 +233,10 @@ alone.
 ### Things not decided yet
 
 - `k3s_server_disable` is empty, so traefik, servicelb, local-path and
-  metrics-server all install. No ADR covers ingress yet. If ArgoCD is
-  going to bring its own, disabling traefik is cheaper before anything
-  depends on it than after.
+  metrics-server all install. No ADR covers ingress yet. ArgoCD does not
+  need one ([ADR 0005](docs/decisions/0005-argocd-bootstrap-and-access.md)
+  publishes it over Tailscale instead), so the question is still open and
+  still cheap to answer.
 - `secrets-encryption` is on. It is free at `cluster-init` and means
   re-encrypting every existing Secret if turned on later.
 - etcd snapshots are k3s defaults: every 12h, 5 retained, **on local disk
@@ -317,9 +321,103 @@ Note also that the Oracle Minimal image ships without `curl`, `chrony` or
 `unattended-upgrades` — `roles/base/tasks/packages.yml` installs them
 before anything assumes they exist.
 
+## ArgoCD
+
+```bash
+make argocd         # or: ansible-playbook site.yml --tags argocd
+```
+
+Ansible installs ArgoCD and nothing else. ArgoCD installs everything after
+it ([ADR 0005](docs/decisions/0005-argocd-bootstrap-and-access.md)) — the
+role creates exactly one Application, an app-of-apps root pointing at
+`clusters/prod/`, and from then on adding a workload is a commit rather
+than a playbook run.
+
+Like `--cluster-init`, this runs on whichever node is in `k3s_first_server`
+rather than from a flag, so the cluster-wide manifests are applied from one
+place. The upstream `install.yaml` is pinned by version *and* sha256 in
+`roles/argocd/defaults/main.yml`; upgrading means bumping both and
+re-running:
+
+```bash
+curl -sL https://raw.githubusercontent.com/argoproj/argo-cd/vX.Y.Z/manifests/install.yaml | sha256sum
+```
+
+Only two things deviate from upstream: a `role=interactive` nodeSelector on
+every ArgoCD workload, so the UI lands on home rather than wherever the
+scheduler has room ([ADR
+0004](docs/decisions/0004-workload-placement.md)), and a NodePort on
+`argocd-server` when the UI is published. Staying close to upstream is what
+keeps upgrades to one line.
+
+### Getting in
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d; echo
+```
+
+Username `admin`. Change it in the UI and delete that Secret afterwards —
+it is not rotated and not needed once you have.
+
+### External access
+
+The UI is published by **Tailscale**, not by an ingress. `tailscale serve`
+on home terminates a real Let's Encrypt certificate for the node's MagicDNS
+name and proxies to ArgoCD:
+
+```
+https://home-server.tail02e471.ts.net
+```
+
+That is reachable from any device logged into the tailnet — your laptop on
+someone else's WiFi, your phone, anywhere. It is *not* limited to the home
+LAN, which is usually what "external access" is actually after. Nothing is
+forwarded on the router, there is no DNS record to own and no certificate
+to renew.
+
+`argocd_expose` picks how far it goes:
+
+| Value | Reachable from |
+|-------|----------------|
+| `cluster` | nowhere; `kubectl port-forward` only |
+| `tailnet` (default) | any device on the tailnet |
+| `funnel` | the open internet |
+
+It is reversible — setting it back and re-running withdraws the handler
+rather than leaving it up.
+
+**On `funnel`:** it works, and it is one variable. It is not the default on
+purpose. ArgoCD's admin account can schedule a pod in any namespace, so it
+is cluster-admin by another name, and `funnel` puts its login page
+somewhere scanners find within hours — with no SSO, no MFA and no rate
+limiting in front of it. The honest version is that `tailnet` already
+covers "I want to reach it when I'm out"; `funnel` only adds access from a
+device that isn't yours. If you do want it, wire up OIDC on the admin
+account first. The reasoning is in ADR 0005.
+
+Two things have to be turned on in the [Tailscale admin
+console](https://login.tailscale.com/admin/dns) and cannot be done from
+Ansible:
+
+- **HTTPS certificates** for the tailnet — required for `tailnet` and
+  `funnel` both.
+- **The `funnel` node attribute** in the ACL policy — required for
+  `funnel` only.
+
+Without them the `tailscale serve` task fails with Tailscale's own message
+saying which one is missing.
+
+One caveat worth knowing: the `argocd-server` NodePorts (30080/30443) bind
+every interface on every node, not just home's `tailscale0`. On oracle the
+host firewall rejects them. On home and squadron they are reachable from
+those LANs, still behind an ArgoCD login. Narrowing that needs a
+cluster-wide kube-proxy setting, which is not worth it here.
+
 ## Decisions
 
 - [0001 — Embedded etcd, 3 servers, quorum 2](docs/decisions/0001-etcd-topology.md)
 - [0002 — Secrets: SOPS + age for infra secrets; in-cluster secrets undecided](docs/decisions/0002-secrets-management.md)
 - [0003 — GPU scheduling on squadron](docs/decisions/0003-gpu-scheduling.md)
 - [0004 — Workload placement](docs/decisions/0004-workload-placement.md)
+- [0005 — ArgoCD bootstrapped by Ansible, published over Tailscale](docs/decisions/0005-argocd-bootstrap-and-access.md)

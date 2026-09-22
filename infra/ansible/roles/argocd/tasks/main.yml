@@ -1,0 +1,37 @@
+---
+- name: Include preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+  tags: [preflight]
+
+- name: Include Argo CD install
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+
+- name: Include readiness wait
+  ansible.builtin.import_tasks: ready.yml
+
+# After ready.yml: the Application CRD has to be established before the root
+# Application can be created.
+- name: Include app-of-apps bootstrap
+  ansible.builtin.import_tasks: bootstrap.yml
+  tags: [bootstrap]
+
+- name: Include external access
+  ansible.builtin.import_tasks: expose.yml
+  tags: [expose]
+
+# The password is not printed. It is a cluster-admin credential and the
+# playbook output is not the right place for it.
+- name: Report how to reach Argo CD
+  ansible.builtin.debug:
+    msg:
+      - "{{ 'UI: ' ~ argocd_url if argocd_expose != 'cluster'
+        else 'UI: not published. k3s kubectl -n ' ~ argocd_namespace
+        ~ ' port-forward svc/argocd-server 8080:443' }}"
+      - "{{ 'Reachable from the public internet.' if argocd_expose == 'funnel'
+        else 'Reachable from the tailnet only.' if argocd_expose == 'tailnet'
+        else 'Reachable from inside the cluster only.' }}"
+      - "Username: admin"
+      - >-
+        Password: k3s kubectl -n {{ argocd_namespace }} get secret
+        argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d

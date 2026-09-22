@@ -1,0 +1,59 @@
+---
+# Argo CD release to install
+#   https://github.com/argoproj/argo-cd/releases
+argocd_version: "v3.5.3"
+
+# The non-HA install manifest. Three small machines do not have the headroom
+# for the HA variant (it wants three Redis replicas of its own), and losing
+# Argo CD for a few minutes costs nothing - it is not in the request path of
+# anything it deploys.
+argocd_install_manifest_url: >-
+  https://raw.githubusercontent.com/argoproj/argo-cd/{{ argocd_version }}/manifests/install.yaml
+
+# Checked on download, so a swapped file upstream fails loudly instead of
+# being applied. Update this whenever argocd_version changes:
+#   curl -sL <url> | sha256sum
+argocd_install_manifest_checksum: "sha256:7efe2d6bbc03f63623640f1e4198f16c84009d510fb810ef71e56df1b7614ba9"
+
+argocd_namespace: argocd
+
+# Where the rendered manifests are staged on the node. Deliberately not
+# /var/lib/rancher/k3s/server/manifests - k3s auto-applies anything dropped
+# there, which would fight Argo CD for ownership of its own objects.
+argocd_bootstrap_dir: /var/lib/argocd-bootstrap
+
+# Argo CD is something a person uses directly, so it is pinned rather than
+# left to the scheduler (ADR 0004). This is the role= label value, not a
+# node name.
+argocd_node_role: interactive
+
+# How the UI is reachable from outside the cluster:
+#   cluster  - not published at all, kubectl port-forward only
+#   tailnet  - published on the tailnet over HTTPS (tailscale serve)
+#   funnel   - published on the public internet (tailscale funnel)
+# See ADR 0005 before changing this to funnel.
+argocd_expose: tailnet
+
+# tailscaled runs on the host and will only proxy to a localhost target, so
+# the UI needs a port on the node itself. Only used when argocd_expose is
+# not "cluster".
+argocd_server_nodeport_http: 30080
+argocd_server_nodeport_https: 30443
+
+# Port the tailnet name answers on. Funnel only permits 443, 8443 and 10000.
+argocd_tailscale_port: 443
+
+# The app-of-apps root. Everything else Argo CD runs is reached from here,
+# so this is the only Application Ansible ever creates.
+argocd_root_app_name: prod
+argocd_repo_url: https://github.com/BenMcD23/k3s-homelab.git
+argocd_repo_revision: main
+argocd_repo_path: clusters/prod
+
+# Prune removes child Applications when they leave git. They carry no
+# deletion finalizer, so pruning one orphans its workloads rather than
+# deleting them - recoverable, unlike the alternative.
+argocd_root_app_prune: true
+
+# Seconds to wait for the Argo CD workloads to roll out.
+argocd_ready_timeout: 300

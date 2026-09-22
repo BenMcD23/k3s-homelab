@@ -1,0 +1,66 @@
+---
+# Publishing the UI is tailscaled's job, not the cluster's. Tailscale
+# terminates a real Let's Encrypt certificate for the node's MagicDNS name
+# and proxies to the NodePort on 127.0.0.1, so nothing has to be opened on
+# the LAN, no DNS record exists and no certificate has to be renewed here.
+#
+# "serve" keeps that to the tailnet. "funnel" is the same handler with the
+# public relays in front of it, which puts an Argo CD login page on the open
+# internet - read ADR 0005 before turning it on.
+#
+# Two things have to be enabled in the Tailscale admin console first and
+# cannot be done from here: HTTPS certificates for the tailnet, and (for
+# funnel) the funnel node attribute in the ACL policy. Without them the
+# commands below fail with Tailscale's own message saying so.
+
+- name: Read the current Tailscale serve configuration
+  ansible.builtin.command: tailscale serve status --json
+  register: argocd_serve_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# "tailscale serve status --json" prints {} when nothing is configured, so
+# every lookup below has to survive a missing key rather than assume one.
+- name: Note what Tailscale is currently serving
+  ansible.builtin.set_fact:
+    argocd_serve_config: "{{ argocd_serve_status.stdout | default('{}', true) | from_json }}"
+
+- name: Note the serve entry and funnel flag for the Argo CD hostname
+  ansible.builtin.set_fact:
+    argocd_serve_entry: "{{ (argocd_serve_config.Web | default({}, true)).get(argocd_serve_key, {}) }}"
+    argocd_funnel_current: "{{ (argocd_serve_config.AllowFunnel | default({}, true)).get(argocd_serve_key, false) }}"
+
+- name: Note the proxy target currently configured
+  ansible.builtin.set_fact:
+    argocd_serve_proxy_current: "{{ argocd_serve_entry.get('Handlers', {}).get('/', {}).get('Proxy', '') }}"
+
+# Ordered so a downgrade is a downgrade: funnel comes off before anything
+# else is touched, never after.
+- name: Withdraw Argo CD from the public internet
+  ansible.builtin.command:
+    cmd: "tailscale funnel --https={{ argocd_tailscale_port }} off"
+  when:
+    - argocd_funnel_current | bool
+    - argocd_expose != 'funnel'
+  changed_when: true
+
+- name: Withdraw Argo CD from the tailnet
+  ansible.builtin.command:
+    cmd: "tailscale serve --https={{ argocd_tailscale_port }} off"
+  when:
+    - argocd_expose == 'cluster'
+    - argocd_serve_proxy_current | length > 0
+  changed_when: true
+
+# One command sets the handler and, as "funnel", the public flag with it.
+- name: Publish Argo CD on {{ 'the public internet' if argocd_expose == 'funnel' else 'the tailnet' }}
+  ansible.builtin.command:
+    cmd: >-
+      tailscale {{ 'funnel' if argocd_expose == 'funnel' else 'serve' }} --bg
+      --https={{ argocd_tailscale_port }} {{ argocd_serve_target }}
+  when:
+    - argocd_expose != 'cluster'
+    - argocd_serve_proxy_current != argocd_serve_target
+      or (argocd_funnel_current | bool) != (argocd_expose == 'funnel')
+  changed_when: true

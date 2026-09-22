@@ -1,0 +1,18 @@
+---
+- name: Write the root Application manifest
+  ansible.builtin.template:
+    src: root-application.yaml.j2
+    dest: "{{ argocd_bootstrap_dir }}/root-application.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+
+# One small object, so an ordinary client-side apply is fine here and gives
+# a truthful created/configured/unchanged result to key changed_when off.
+- name: Create the app-of-apps root Application
+  ansible.builtin.command:
+    cmd: "k3s kubectl apply -f {{ argocd_bootstrap_dir }}/root-application.yaml"
+  environment:
+    KUBECONFIG: "{{ argocd_kubeconfig }}"
+  register: argocd_root_app
+  changed_when: "'unchanged' not in argocd_root_app.stdout"
