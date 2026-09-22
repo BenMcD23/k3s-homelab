@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  role_name: tailscale_operator
+  author: BenMcD23
+  description: Tailscale Kubernetes operator, so services get their own tailnet names
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - all
+dependencies: []

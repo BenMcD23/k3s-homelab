@@ -20,3 +20,8 @@ Placement is not automatic. Every workload picks its node with a
 `nodeSelector` on `role=interactive`, `role=batch` or `role=edge`
 ([ADR 0004](../../docs/decisions/0004-workload-placement.md)), and anything
 that might run on oracle needs an arm64 image.
+
+Anything that needs to be reachable gets its own name on the tailnet by
+adding an Ingress with `ingressClassName: tailscale` and its own hostname
+in `spec.tls[0].hosts` — the Tailscale operator is already installed and
+does the rest. No ingress controller, no DNS, no certificates.

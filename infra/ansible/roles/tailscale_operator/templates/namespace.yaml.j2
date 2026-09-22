@@ -1,0 +1,10 @@
+# Managed by Ansible - roles/tailscale_operator/templates/namespace.yaml.j2
+# Edits here are overwritten on the next run. Change the role instead.
+#
+# The upstream manifest creates this too. It is created here first because
+# the OAuth Secret has to exist before the operator Deployment starts, and
+# a Secret cannot be applied into a namespace that is not there yet.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ tailscale_operator_namespace }}

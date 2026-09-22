@@ -34,8 +34,8 @@ base: ## Host prep only, no k3s
 cluster: ## k3s bring-up only - the base role must have run first
 	cd $(ANSIBLE_DIR) && ansible-playbook site.yml --tags k3s
 
-argocd: ## Argo CD bootstrap only - the cluster must be up first
-	cd $(ANSIBLE_DIR) && ansible-playbook site.yml --tags argocd
+argocd: ## Tailscale operator + Argo CD bootstrap - the cluster must be up first
+	cd $(ANSIBLE_DIR) && ansible-playbook site.yml --tags tailscale_operator,argocd
 
 etcd-health: ## etcd fsync latency and leader stability on every server
 	@scripts/etcd-health.sh

@@ -1,23 +1,11 @@
 ---
-# In vars/ rather than defaults/: these are derived from the host and from
-# settings above, and overriding one on its own would put the serve config
-# and the Service out of step with each other.
+# In vars/ rather than defaults/: derived from settings above, and
+# overriding one on its own would put the Ingress and the URL out of step.
 
-# MagicDNS name of this node. Same derivation as the API server's TLS SAN in
-# roles/k3s_server/templates/config.yaml.j2, lowercased because that is how
-# tailscaled writes it into the serve config.
-argocd_tailnet_host: "{{ ansible_hostname | lower }}.{{ tailnet }}"
+# What the operator will register on the tailnet. The tailnet half comes
+# from the inventory, so renaming the tailnet is a one-line change there.
+argocd_tailnet_host: "{{ argocd_hostname }}.{{ tailnet }}"
 
-# tailscale serve refuses anything that is not a localhost target, so this
-# goes through the NodePort. https+insecure because argocd-server presents
-# its own self-signed cert on that port; Tailscale terminates the real one.
-argocd_serve_target: "https+insecure://127.0.0.1:{{ argocd_server_nodeport_https }}"
-
-# Key tailscaled files the handler under, in its own "host:port" form.
-argocd_serve_key: "{{ argocd_tailnet_host }}:{{ argocd_tailscale_port }}"
-
-argocd_url: >-
-  https://{{ argocd_tailnet_host }}{{ '' if argocd_tailscale_port | int == 443
-  else ':' ~ argocd_tailscale_port }}
+argocd_url: "https://{{ argocd_tailnet_host }}"
 
 argocd_kubeconfig: /etc/rancher/k3s/k3s.yaml

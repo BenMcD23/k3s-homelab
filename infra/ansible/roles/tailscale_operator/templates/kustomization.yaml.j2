@@ -1,0 +1,50 @@
+# Managed by Ansible - roles/tailscale_operator/templates/kustomization.yaml.j2
+# Edits here are overwritten on the next run. Change the role instead.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - operator.yaml
+
+patches:
+  # The upstream manifest ships a placeholder operator-oauth Secret whose
+  # two keys are explicitly null. Applied server-side that does not leave
+  # the real credentials alone - it blanks them, on every run. So the
+  # placeholder is dropped here and tasks/secret.yml writes the real Secret
+  # separately, before this is applied.
+  - patch: |-
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: operator-oauth
+        namespace: {{ tailscale_operator_namespace }}
+      $patch: delete
+
+  # Both images ship as ":stable". Pinned so a pod restart cannot upgrade
+  # the operator, and PROXY_IMAGE so it cannot upgrade the proxies either.
+  #
+  # PROXY_DEFAULT_CLASS makes the ProxyClass below apply to every proxy the
+  # operator creates, so a workload published later gets the placement
+  # without its author having to know about it.
+  #
+  # nodeSelector is a strategic merge, not a replace: upstream already sets
+  # kubernetes.io/os and that has to survive.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: operator
+        namespace: {{ tailscale_operator_namespace }}
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              role: {{ tailscale_operator_node_role }}
+            containers:
+              - name: operator
+                image: {{ tailscale_operator_image }}
+                env:
+                  - name: PROXY_IMAGE
+                    value: {{ tailscale_operator_proxy_image }}
+                  - name: PROXY_DEFAULT_CLASS
+                    value: {{ tailscale_operator_proxy_class }}

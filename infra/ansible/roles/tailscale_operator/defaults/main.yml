@@ -1,0 +1,42 @@
+---
+# Tailscale Kubernetes operator release
+#   https://github.com/tailscale/tailscale/releases
+tailscale_operator_version: "v1.102.4"
+
+tailscale_operator_manifest_url: >-
+  https://raw.githubusercontent.com/tailscale/tailscale/{{ tailscale_operator_version }}/cmd/k8s-operator/deploy/manifests/operator.yaml
+
+# Checked on download. Update whenever the version changes:
+#   curl -sL <url> | sha256sum
+tailscale_operator_manifest_checksum: "sha256:f05038a304b7b3693bd74654c6316def629c5f29afd487f5be09de4bc969c00a"
+
+# Upstream ships both images as ":stable", which would let a pod restart
+# upgrade the operator underneath a running cluster - the same reason
+# k3s_server_version exists. Pinned to the release being installed.
+tailscale_operator_image: "tailscale/k8s-operator:{{ tailscale_operator_version }}"
+tailscale_operator_proxy_image: "tailscale/tailscale:{{ tailscale_operator_version }}"
+
+# Fixed by the upstream manifest; changing it means patching more than the
+# operator's own objects.
+tailscale_operator_namespace: tailscale
+
+tailscale_operator_bootstrap_dir: /var/lib/tailscale-operator-bootstrap
+
+# ADR 0004. The operator reconciles the front door for everything published
+# on the tailnet, so it is pinned rather than left to the scheduler.
+tailscale_operator_node_role: interactive
+
+# Every proxy pod the operator creates is the thing traffic actually lands
+# on, which makes it user-facing by definition. Without this they would be
+# spread by capacity - including onto squadron, whose link is the one that
+# goes away. Applied through a ProxyClass set as the operator's default, so
+# workloads added later inherit it without having to remember.
+tailscale_operator_proxy_class: homelab
+tailscale_operator_proxy_node_role: interactive
+
+# OAuth client for the operator, from SOPS. Needs the auth_keys write scope
+# and the tag:k8s-operator tag - see the README.
+tailscale_operator_oauth_client_id: "{{ tailscale_oauth_client_id | default('') }}"
+tailscale_operator_oauth_client_secret: "{{ tailscale_oauth_client_secret | default('') }}"
+
+tailscale_operator_ready_timeout: 300

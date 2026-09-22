@@ -1,0 +1,35 @@
+---
+- name: Wait for the operator to roll out
+  ansible.builtin.command:
+    cmd: >-
+      k3s kubectl -n {{ tailscale_operator_namespace }} rollout status
+      deployment/operator --timeout={{ tailscale_operator_ready_timeout }}s
+  environment:
+    KUBECONFIG: "{{ tailscale_operator_kubeconfig }}"
+  changed_when: false
+
+# A running operator is not the same as an authenticated one. If the OAuth
+# client is missing a scope or the tag is not owned, the Deployment reports
+# Available and the operator logs the rejection in a loop - and the first
+# symptom is an Ingress that never gets an address, which is a long way from
+# the cause.
+- name: Check the operator authenticated to the tailnet
+  ansible.builtin.command:
+    cmd: >-
+      k3s kubectl -n {{ tailscale_operator_namespace }} logs
+      deployment/operator --tail=50
+  environment:
+    KUBECONFIG: "{{ tailscale_operator_kubeconfig }}"
+  register: tailscale_operator_logs
+  changed_when: false
+  check_mode: false
+
+- name: Warn if the operator logs look like an auth failure
+  ansible.builtin.debug:
+    msg: >-
+      The operator is running but its recent logs mention an auth problem.
+      Check the OAuth client has the auth_keys write scope and that
+      tag:k8s-operator and tag:k8s have tagOwners in the tailnet ACL, then
+      look at "kubectl -n {{ tailscale_operator_namespace }} logs
+      deployment/operator".
+  when: tailscale_operator_logs.stdout is search('(?i)(unauthorized|invalid.*(key|credential|token)|requested tags.*invalid)')

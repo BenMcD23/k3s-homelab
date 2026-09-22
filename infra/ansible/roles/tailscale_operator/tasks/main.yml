@@ -1,0 +1,25 @@
+---
+- name: Include preflight checks
+  ansible.builtin.import_tasks: preflight.yml
+  tags: [preflight]
+
+- name: Ensure the operator staging directory exists
+  ansible.builtin.file:
+    path: "{{ tailscale_operator_bootstrap_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+# Before install.yml: the operator Deployment mounts the OAuth Secret, so a
+# pod that starts without it never becomes ready.
+- name: Include the OAuth client Secret
+  ansible.builtin.import_tasks: secret.yml
+  tags: [secret]
+
+- name: Include the operator install
+  ansible.builtin.import_tasks: install.yml
+  tags: [install]
+
+- name: Include readiness wait
+  ansible.builtin.import_tasks: ready.yml

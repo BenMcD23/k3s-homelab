@@ -33,36 +33,22 @@ patches:
           role: {{ argocd_node_role }}
 {% if argocd_expose != 'cluster' %}
 
-  # tailscaled runs on the host, outside the cluster network, and will only
-  # proxy to a localhost target - so the UI needs a fixed port on the node
-  # for it to reach. The ports are pinned rather than allocated at random so
-  # the serve config written in tasks/expose.yml stays correct across
-  # reinstalls.
+  # TLS is terminated by the Tailscale proxy in front of argocd-server, so
+  # the server itself serves plain HTTP. Without this it answers HTTPS on
+  # the same port and redirects the proxy's plaintext request back to
+  # itself, which is the classic Argo CD redirect loop behind an ingress.
   #
-  # NodePorts bind every interface on every node, not just this one. What
-  # keeps that from being an open door is the host firewall (oracle) and the
-  # fact that argocd-server still wants a login either way; see ADR 0005.
-  #
-  # Each port is spelled out in full. A strategic merge patch that names
-  # only the port and the nodePort is accepted, applies the type change,
-  # and drops the nodePorts without a word - so these have to match
-  # upstream's protocol and targetPort exactly.
+  # The Deployment reads this through a configMapKeyRef, which is only
+  # evaluated when the pod starts - so tasks/install.yml restarts
+  # argocd-server whenever these manifests change.
   - patch: |-
       apiVersion: v1
-      kind: Service
+      kind: ConfigMap
       metadata:
-        name: argocd-server
-      spec:
-        type: NodePort
-        ports:
-          - name: http
-            port: 80
-            protocol: TCP
-            targetPort: 8080
-            nodePort: {{ argocd_server_nodeport_http }}
-          - name: https
-            port: 443
-            protocol: TCP
-            targetPort: 8080
-            nodePort: {{ argocd_server_nodeport_https }}
+        # No namespace: upstream's resources carry none, and kustomize
+        # matches patches before its namespace transformer runs. Naming one
+        # here makes the patch match nothing, which is a hard error.
+        name: argocd-cmd-params-cm
+      data:
+        server.insecure: "true"
 {% endif %}

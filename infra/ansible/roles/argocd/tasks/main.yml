@@ -7,6 +7,11 @@
   ansible.builtin.import_tasks: install.yml
   tags: [install]
 
+# Handlers normally run at the end of the play, but a pending restart has to
+# land before the readiness checks below - same reason k3s_server flushes.
+- name: Apply any pending argocd-server restart now
+  ansible.builtin.meta: flush_handlers
+
 - name: Include readiness wait
   ansible.builtin.import_tasks: ready.yml
 

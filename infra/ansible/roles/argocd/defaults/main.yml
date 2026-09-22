@@ -29,19 +29,15 @@ argocd_node_role: interactive
 
 # How the UI is reachable from outside the cluster:
 #   cluster  - not published at all, kubectl port-forward only
-#   tailnet  - published on the tailnet over HTTPS (tailscale serve)
-#   funnel   - published on the public internet (tailscale funnel)
+#   tailnet  - its own device on the tailnet, over HTTPS
+#   funnel   - the same device, also on the public internet
 # See ADR 0005 before changing this to funnel.
 argocd_expose: tailnet
 
-# tailscaled runs on the host and will only proxy to a localhost target, so
-# the UI needs a port on the node itself. Only used when argocd_expose is
-# not "cluster".
-argocd_server_nodeport_http: 30080
-argocd_server_nodeport_https: 30443
-
-# Port the tailnet name answers on. Funnel only permits 443, 8443 and 10000.
-argocd_tailscale_port: 443
+# The tailnet device name, and so the first label of the URL. The Tailscale
+# operator takes it from the Ingress's spec.tls[0].hosts[0] and completes it
+# with the tailnet's own name, giving argocd.<tailnet>.ts.net.
+argocd_hostname: argocd
 
 # The app-of-apps root. Everything else Argo CD runs is reached from here,
 # so this is the only Application Ansible ever creates.

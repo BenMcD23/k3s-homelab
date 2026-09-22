@@ -1,66 +1,61 @@
 ---
-# Publishing the UI is tailscaled's job, not the cluster's. Tailscale
-# terminates a real Let's Encrypt certificate for the node's MagicDNS name
-# and proxies to the NodePort on 127.0.0.1, so nothing has to be opened on
-# the LAN, no DNS record exists and no certificate has to be renewed here.
+# Publishing is the Tailscale operator's job. It watches for Ingresses with
+# ingressClassName: tailscale and gives each one its own device on the
+# tailnet, with its own name and its own Let's Encrypt certificate. Nothing
+# is bound on a node, so there is no port on a LAN interface to reason
+# about, and the URL does not carry a node's hostname.
 #
-# "serve" keeps that to the tailnet. "funnel" is the same handler with the
-# public relays in front of it, which puts an Argo CD login page on the open
-# internet - read ADR 0005 before turning it on.
-#
-# Two things have to be enabled in the Tailscale admin console first and
-# cannot be done from here: HTTPS certificates for the tailnet, and (for
-# funnel) the funnel node attribute in the ACL policy. Without them the
-# commands below fail with Tailscale's own message saying so.
+# Two things have to be in place in the Tailscale admin console first and
+# cannot be done from here: tagOwners for tag:k8s-operator and tag:k8s in
+# the ACL policy, and (for funnel) the funnel node attribute. The
+# tailscale_operator role checks what it can and says so in its logs.
 
-- name: Read the current Tailscale serve configuration
-  ansible.builtin.command: tailscale serve status --json
-  register: argocd_serve_status
-  changed_when: false
-  failed_when: false
-  check_mode: false
+- name: Write the Argo CD Ingress
+  ansible.builtin.template:
+    src: ingress.yaml.j2
+    dest: "{{ argocd_bootstrap_dir }}/ingress.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+  when: argocd_expose != 'cluster'
 
-# "tailscale serve status --json" prints {} when nothing is configured, so
-# every lookup below has to survive a missing key rather than assume one.
-- name: Note what Tailscale is currently serving
-  ansible.builtin.set_fact:
-    argocd_serve_config: "{{ argocd_serve_status.stdout | default('{}', true) | from_json }}"
-
-- name: Note the serve entry and funnel flag for the Argo CD hostname
-  ansible.builtin.set_fact:
-    argocd_serve_entry: "{{ (argocd_serve_config.Web | default({}, true)).get(argocd_serve_key, {}) }}"
-    argocd_funnel_current: "{{ (argocd_serve_config.AllowFunnel | default({}, true)).get(argocd_serve_key, false) }}"
-
-- name: Note the proxy target currently configured
-  ansible.builtin.set_fact:
-    argocd_serve_proxy_current: "{{ argocd_serve_entry.get('Handlers', {}).get('/', {}).get('Proxy', '') }}"
-
-# Ordered so a downgrade is a downgrade: funnel comes off before anything
-# else is touched, never after.
-- name: Withdraw Argo CD from the public internet
-  ansible.builtin.command:
-    cmd: "tailscale funnel --https={{ argocd_tailscale_port }} off"
-  when:
-    - argocd_funnel_current | bool
-    - argocd_expose != 'funnel'
-  changed_when: true
-
-- name: Withdraw Argo CD from the tailnet
-  ansible.builtin.command:
-    cmd: "tailscale serve --https={{ argocd_tailscale_port }} off"
-  when:
-    - argocd_expose == 'cluster'
-    - argocd_serve_proxy_current | length > 0
-  changed_when: true
-
-# One command sets the handler and, as "funnel", the public flag with it.
 - name: Publish Argo CD on {{ 'the public internet' if argocd_expose == 'funnel' else 'the tailnet' }}
   ansible.builtin.command:
+    cmd: "k3s kubectl apply -f {{ argocd_bootstrap_dir }}/ingress.yaml"
+  environment:
+    KUBECONFIG: "{{ argocd_kubeconfig }}"
+  register: argocd_ingress
+  changed_when: "'unchanged' not in argocd_ingress.stdout"
+  when: argocd_expose != 'cluster'
+
+# Reversible: lowering argocd_expose to "cluster" takes the device off the
+# tailnet rather than leaving it up. Deleting the Ingress is what tells the
+# operator to tear the proxy down and release the name.
+- name: Withdraw Argo CD from the tailnet
+  ansible.builtin.command:
     cmd: >-
-      tailscale {{ 'funnel' if argocd_expose == 'funnel' else 'serve' }} --bg
-      --https={{ argocd_tailscale_port }} {{ argocd_serve_target }}
-  when:
-    - argocd_expose != 'cluster'
-    - argocd_serve_proxy_current != argocd_serve_target
-      or (argocd_funnel_current | bool) != (argocd_expose == 'funnel')
-  changed_when: true
+      k3s kubectl -n {{ argocd_namespace }} delete ingress argocd-server
+      --ignore-not-found
+  environment:
+    KUBECONFIG: "{{ argocd_kubeconfig }}"
+  register: argocd_ingress_delete
+  changed_when: "'deleted' in argocd_ingress_delete.stdout"
+  when: argocd_expose == 'cluster'
+
+# The operator writes the device's name back onto the Ingress once the
+# proxy is up and the certificate has been issued. Until that happens the
+# URL does not resolve, so waiting here means a green run is one where the
+# UI is actually reachable.
+- name: Wait for the tailnet device to be registered
+  ansible.builtin.command:
+    cmd: >-
+      k3s kubectl -n {{ argocd_namespace }} get ingress argocd-server
+      -o jsonpath={.status.loadBalancer.ingress[0].hostname}
+  environment:
+    KUBECONFIG: "{{ argocd_kubeconfig }}"
+  register: argocd_ingress_host
+  changed_when: false
+  until: argocd_ingress_host.stdout | length > 0
+  retries: "{{ (argocd_ready_timeout | int / 15) | round(0, 'ceil') | int }}"
+  delay: 15
+  when: argocd_expose != 'cluster'

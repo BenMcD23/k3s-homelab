@@ -63,3 +63,4 @@
     KUBECONFIG: "{{ argocd_kubeconfig }}"
   when: argocd_manifest_diff.rc != 0
   changed_when: true
+  notify: Restart argocd-server
