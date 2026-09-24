@@ -4,12 +4,11 @@ Three-node k3s cluster with embedded etcd, meshed over Tailscale.
 Infrastructure as code: Terraform for the Oracle Cloud node, Ansible for
 host configuration, ArgoCD for workloads.
 
-**Current state: bring-up is written, not yet run.** The `base` role
-prepares hosts, the `k3s_server` role stands up the three-server cluster,
-and the `argocd` role bootstraps ArgoCD onto it. Neither the cluster nor
-anything on it exists yet — running `make apply` against the real nodes is
-the next step. Workloads (GPU scheduling, and anything under
-`clusters/prod/`) come after.
+**Current state: the cluster is up.** The `base` role prepares hosts, the
+`k3s_server` role stands up the three-server cluster, and the `argocd`
+role bootstraps ArgoCD onto it — all three have been run against the real
+nodes. Workloads (GPU scheduling, and anything under `clusters/prod/`) are
+next.
 
 ## Nodes
 
@@ -467,7 +466,9 @@ argocd login argocd.tail02e471.ts.net --grpc-web
 ## Decisions
 
 - [0001 — Embedded etcd, 3 servers, quorum 2](docs/decisions/0001-etcd-topology.md)
-- [0002 — Secrets: SOPS + age for infra secrets; in-cluster secrets undecided](docs/decisions/0002-secrets-management.md)
+- [0002 — Secrets: SOPS + age for infra secrets](docs/decisions/0002-secrets-management.md)
 - [0003 — GPU scheduling on squadron](docs/decisions/0003-gpu-scheduling.md)
 - [0004 — Workload placement](docs/decisions/0004-workload-placement.md)
 - [0005 — ArgoCD bootstrapped by Ansible, published by the Tailscale operator](docs/decisions/0005-argocd-bootstrap-and-access.md)
+- [0006 — Cluster secrets: Sealed Secrets, key backed up with SOPS](docs/decisions/0006-cluster-secrets.md)
+- [0007 — SMS API on squadron, failing over to home](docs/decisions/0007-sms-api-placement-and-ha.md)

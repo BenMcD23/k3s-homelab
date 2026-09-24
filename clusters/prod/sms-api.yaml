@@ -1,0 +1,60 @@
+# The 317 SMS API. Its manifests live with its code, in deploy/ of the app
+# repo; this only tells Argo CD where to find them. CI in that repo bumps the
+# image tag in the overlay, and Argo CD deploys the commit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sms-api-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/BenMcD23/SMS_Scrapers_API.git
+    targetRevision: main
+    path: deploy/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sms-prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The Cluster and SealedSecret CRDs come from other Applications; don't
+      # fail the dry run if this one syncs first.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sms-api-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/BenMcD23/SMS_Scrapers_API.git
+    targetRevision: development
+    path: deploy/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sms-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m

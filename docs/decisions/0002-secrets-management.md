@@ -1,7 +1,8 @@
 # 2. Secrets: SOPS + age
 
 ## Status
-Accepted for infrastructure secrets. In-cluster secrets are still open.
+Accepted for infrastructure secrets. In-cluster secrets: see
+[ADR 0006](0006-cluster-secrets.md) (Sealed Secrets).
 
 ## Context
 The repo needs somewhere to keep a Tailscale auth key. Plaintext in git is
@@ -69,8 +70,9 @@ git add infra/ansible/inventory/group_vars/all/secrets.sops.yaml
 
 Only the encrypted version is ever written to disk in the repo.
 
-## Still open: cluster secrets
-Not decided. Revisit when ArgoCD is set up. The options:
+## Cluster secrets
+Decided in [ADR 0006](0006-cluster-secrets.md): Sealed Secrets, with the
+sealing key backed up by SOPS. The options as they stood:
 
 **Sealed Secrets.** A controller in the cluster holds a private key.
 `kubeseal` encrypts against its public key, the encrypted object is
@@ -100,5 +102,4 @@ front of us.
   each and a list of recipients.
 - Anyone or anything else that needs to decrypt has to be given the key
   separately. Not an issue while there is one operator.
-- Nothing can go in `clusters/prod/` until the cluster secrets question is
-  settled. Nothing is waiting on it today, because there is no cluster yet.
+- The cluster secrets question is settled in ADR 0006.

@@ -1,7 +1,8 @@
 # 4. Where workloads run
 
 ## Status
-Accepted
+Accepted. The SMS API is an exception, see
+[ADR 0007](0007-sms-api-placement-and-ha.md).
 
 ## Context
 The three machines are good at different things:
