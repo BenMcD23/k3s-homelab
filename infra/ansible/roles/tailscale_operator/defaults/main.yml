@@ -39,7 +39,7 @@ tailscale_operator_edge_proxy_class: edge
 
 # WireGuard MTU inside proxy pods: the pod MTU (1230, flannel over
 # tailscale0) minus WireGuard's overhead. See templates/proxyclass.yaml.j2.
-tailscale_operator_proxy_mtu: 1150
+tailscale_operator_proxy_mtu: 1280
 
 # OAuth client for the operator, from SOPS. Needs the auth_keys write scope
 # and the tag:k8s-operator tag - see the README.
