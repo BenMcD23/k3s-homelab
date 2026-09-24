@@ -29,8 +29,10 @@ link doesn't bounce the primary.
 
 **The API follows the primary.** It has preferred pod affinity to the
 instance labelled `cnpg.io/instanceRole=primary`, and the CronJob restarts it
-when the two end up on different nodes. It runs as exactly one replica with
-`Recreate`, because its scheduler is in-process.
+when the two end up on different nodes. It runs as one replica with a
+zero-downtime rolling update. The in-process scheduler only runs in the pod
+holding a Postgres advisory lock (`app/core/leader.py`), so the brief overlap
+never runs a job twice.
 
 **The CNPG operator prefers oracle.** It is the thing that performs
 failover, so it must not share fate with either database node. It is the one
@@ -52,7 +54,8 @@ write, and the slowness is predictable enough to schedule around.
   upgrade is an HA ProxyGroup with a replica per node.
 - **A partitioned squadron can briefly run a second API.** If squadron loses
   the tailnet but keeps internet, the old pod can't be killed. Its scheduler
-  keeps running, and could send duplicate emails or texts, until the node
-  reconnects and the kubelet stops it. This is accepted as rare.
+  stops within about 15 seconds, because its lock connection to the old
+  primary dies (the primary also shuts itself down). A job that was already
+  mid-run finishes.
 - The image is amd64-only, so neither the API nor the database can land on
   oracle.
