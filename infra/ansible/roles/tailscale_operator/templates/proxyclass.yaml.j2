@@ -15,3 +15,17 @@ spec:
     pod:
       nodeSelector:
         role: {{ tailscale_operator_proxy_node_role }}
+---
+# Opt-in, by the label tailscale.com/proxy-class on an Ingress or Service.
+# For a public (Funnel) endpoint that has to outlive home: oracle is always
+# on and runs neither the database nor the API, so losing home or squadron
+# leaves the front door up (ADR 0007). The proxy image is multi-arch.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: {{ tailscale_operator_edge_proxy_class }}
+spec:
+  statefulSet:
+    pod:
+      nodeSelector:
+        role: edge

@@ -48,10 +48,13 @@ write, and the slowness is predictable enough to schedule around.
   would stop that, but every write would then wait on squadron's WiFi.
 - **Every switchover costs a few seconds of downtime**, twice each busy
   evening, and kills any scrape running at that moment.
-- **The Tailscale proxy is still a single point of failure.** Proxies use the
-  `homelab` ProxyClass, which pins them to home. If home dies, the database
-  fails over fine but the Funnel endpoint is gone until home is back. The
-  upgrade is an HA ProxyGroup with a replica per node.
+- **The Tailscale proxy is a single pod, on oracle.** The API's Ingresses use
+  the `edge` ProxyClass rather than the default `homelab` one, so losing home
+  or squadron leaves the Funnel endpoint up. Losing oracle takes it down
+  until oracle is back: the proxy is a StatefulSet pod, which is not replaced
+  while its node is unreachable. An HA ProxyGroup would fix that, but as of
+  operator v1.102 ProxyGroup Ingresses don't support Funnel, and the Vercel
+  frontends need it.
 - **A partitioned squadron can briefly run a second API.** If squadron loses
   the tailnet but keeps internet, the old pod can't be killed. Its scheduler
   stops within about 15 seconds, because its lock connection to the old

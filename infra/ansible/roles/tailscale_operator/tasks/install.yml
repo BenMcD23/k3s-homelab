@@ -60,4 +60,5 @@
   environment:
     KUBECONFIG: "{{ tailscale_operator_kubeconfig }}"
   register: tailscale_operator_proxyclass
-  changed_when: "'unchanged' not in tailscale_operator_proxyclass.stdout"
+  # The file holds more than one ProxyClass, so look for any that changed.
+  changed_when: "' created' in tailscale_operator_proxyclass.stdout or ' configured' in tailscale_operator_proxyclass.stdout"

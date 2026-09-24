@@ -34,6 +34,9 @@ tailscale_operator_node_role: interactive
 tailscale_operator_proxy_class: homelab
 tailscale_operator_proxy_node_role: interactive
 
+# A second ProxyClass that pins to oracle, for proxies that ask for it by name.
+tailscale_operator_edge_proxy_class: edge
+
 # OAuth client for the operator, from SOPS. Needs the auth_keys write scope
 # and the tag:k8s-operator tag - see the README.
 tailscale_operator_oauth_client_id: "{{ tailscale_oauth_client_id | default('') }}"
