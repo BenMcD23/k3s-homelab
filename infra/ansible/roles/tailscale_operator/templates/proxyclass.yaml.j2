@@ -1,6 +1,10 @@
 # Managed by Ansible - roles/tailscale_operator/templates/proxyclass.yaml.j2
 # Edits here are overwritten on the next run. Change the role instead.
 #
+# The operator doesn't roll existing proxies when a ProxyClass changes. It
+# picks the change up on the next event for the Ingress/Service, so touch one
+# (e.g. annotate it) to apply it now.
+#
 # Set as the operator's PROXY_DEFAULT_CLASS, so it governs every proxy pod
 # rather than only the ones that remember to ask for it. A proxy pod is
 # where traffic for a published service actually lands, which makes it
@@ -15,6 +19,15 @@ spec:
     pod:
       nodeSelector:
         role: {{ tailscale_operator_proxy_node_role }}
+      # Each proxy runs its own WireGuard tunnel inside a pod whose network is
+      # already flannel-over-tailscale0: pod MTU 1230. At Tailscale's default
+      # 1280, every full-size packet overflowed it, and large responses
+      # crawled (~23KB/s against ~8MB/s with this). 1230 minus WireGuard's
+      # ~80 bytes of overhead.
+      tailscaleContainer:
+        env:
+          - name: TS_DEBUG_MTU
+            value: "{{ tailscale_operator_proxy_mtu }}"
 ---
 # Opt-in, by the label tailscale.com/proxy-class on an Ingress or Service.
 # For a public (Funnel) endpoint that has to outlive home: oracle is always
@@ -29,3 +42,7 @@ spec:
     pod:
       nodeSelector:
         role: edge
+      tailscaleContainer:
+        env:
+          - name: TS_DEBUG_MTU
+            value: "{{ tailscale_operator_proxy_mtu }}"

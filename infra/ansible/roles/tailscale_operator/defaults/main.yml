@@ -37,6 +37,10 @@ tailscale_operator_proxy_node_role: interactive
 # A second ProxyClass that pins to oracle, for proxies that ask for it by name.
 tailscale_operator_edge_proxy_class: edge
 
+# WireGuard MTU inside proxy pods: the pod MTU (1230, flannel over
+# tailscale0) minus WireGuard's overhead. See templates/proxyclass.yaml.j2.
+tailscale_operator_proxy_mtu: 1150
+
 # OAuth client for the operator, from SOPS. Needs the auth_keys write scope
 # and the tag:k8s-operator tag - see the README.
 tailscale_operator_oauth_client_id: "{{ tailscale_oauth_client_id | default('') }}"
