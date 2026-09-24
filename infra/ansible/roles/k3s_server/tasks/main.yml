@@ -32,6 +32,10 @@
   ansible.builtin.import_tasks: labels.yml
   tags: [labels]
 
+- name: Include the login user's kubeconfig
+  ansible.builtin.import_tasks: user_kubeconfig.yml
+  tags: [kubeconfig]
+
 - name: Include kubeconfig fetch
   ansible.builtin.import_tasks: kubeconfig.yml
   when:
