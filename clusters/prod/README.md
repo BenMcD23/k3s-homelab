@@ -10,6 +10,7 @@ Each file is a child Application, so each thing gets its own sync status:
 | File | What | Where its manifests live |
 |------|------|--------------------------|
 | `sealed-secrets.yaml` | Sealed Secrets controller ([ADR 0006](../../docs/decisions/0006-cluster-secrets.md)) | upstream Helm chart |
+| `traefik.yaml` | Not an Application: values for k3s's bundled Traefik — pinned to oracle, Let's Encrypt, the public front door on oracle's own IP | k3s HelmChart in `kube-system` |
 | `cloudnative-pg.yaml` | CloudNativePG operator ([ADR 0007](../../docs/decisions/0007-sms-api-placement-and-ha.md)) | upstream Helm chart |
 | `sms-api.yaml` | SMS API, prod (`main`) and dev (`development`) | `deploy/` in [SMS_Scrapers_API](https://github.com/BenMcD23/SMS_Scrapers_API) |
 

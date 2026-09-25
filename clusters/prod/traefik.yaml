@@ -1,0 +1,50 @@
+# k3s's bundled Traefik, overriding the chart values k3s ships
+# (kube-system/traefik HelmChart). It is the public front door on oracle's
+# own IP, for things that need the internet without Tailscale Funnel.
+#
+# Why not Funnel: its proxy pod runs WireGuard inside a pod whose MTU is
+# already 1230 (flannel over tailscale0), so large responses crawled
+# (~21KB/s). Lowering the proxy's MTU fixes that but breaks IPv6 (<1280), and
+# raising the nodes' MTU would push home<->squadron onto DERP. Measured
+# 2026-09-25: a 160KB response went from 7.6s via Funnel to ~0.7s direct.
+#
+# svclb already forwards oracle's :80/:443 to this Service - the host's
+# "only port 22" iptables rule doesn't apply to hostPort DNAT - and the OCI
+# security list allows all TCP.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    # Oracle is the only node with a public IP; the others are behind NAT.
+    # Pinning it here keeps the path internet -> oracle -> API, with no
+    # extra hop via home. The image is multi-arch.
+    nodeSelector:
+      role: edge
+    # Certificates live in acme.json, on a local-path volume on oracle, so a
+    # restart doesn't re-issue (Let's Encrypt rate limits).
+    persistence:
+      enabled: true
+      storageClass: local-path
+      size: 128Mi
+      path: /data
+    # The volume is ReadWriteOnce; don't start the new pod before the old
+    # one lets go of it.
+    updateStrategy:
+      type: Recreate
+      rollingUpdate: null
+    certificatesResolvers:
+      letsencrypt:
+        acme:
+          storage: /data/acme.json
+          httpChallenge:
+            entryPoint: web
+    ports:
+      web:
+        redirections:
+          entryPoint:
+            to: websecure
+            scheme: https
+            permanent: true
