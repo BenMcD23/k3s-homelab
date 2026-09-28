@@ -1,8 +1,9 @@
-# 7. SMS API: runs on squadron, fails over to home
+# 7. SMS API: runs on home, fails over to squadron
 
 ## Status
-Accepted. An exception to [ADR 0004](0004-workload-placement.md) for one
-workload.
+Accepted. Amended 2026-09-28: the primary moved from squadron to home (see
+the end), which brings this back in line with
+[ADR 0004](0004-workload-placement.md).
 
 ## Context
 ADR 0004 puts anything a person uses on home, because squadron's WiFi is the
@@ -19,13 +20,12 @@ squadron (required anti-affinity), with streaming replication. If the
 primary's node drops, the operator promotes the replica in about a minute.
 oracle holds no instance.
 
-**The primary lives on squadron, except 17:00–23:00 Europe/London on
-Wednesday and Friday, when it lives on home.** A CronJob in the app repo
+**The primary lives on home.** A CronJob in the app repo
 (`deploy/overlays/prod/switchover.yaml`) checks every 10 minutes and does a
 CNPG switchover when the primary is on the wrong node. It is a reconciler,
-not a timer. That means it also fails back to squadron after an outage, but
-only once squadron's replica has been Ready for 30 minutes, so a flapping
-link doesn't bounce the primary.
+not a timer, so it fails back to home after an outage, but only once home's
+replica has been Ready for 30 minutes, so a flapping link doesn't bounce the
+primary.
 
 **The API follows the primary.** It has preferred pod affinity to the
 instance labelled `cnpg.io/instanceRole=primary`, and the CronJob restarts it
@@ -46,8 +46,9 @@ write, and the slowness is predictable enough to schedule around.
 - **Failover loses recent writes.** Replication is async, so the last second
   or so of writes on a primary that dies are lost. Synchronous replication
   would stop that, but every write would then wait on squadron's WiFi.
-- **Every switchover costs a few seconds of downtime**, twice each busy
-  evening, and kills any scrape running at that moment.
+- **Every switchover costs a few seconds of downtime** and kills any scrape
+  running at that moment. With the primary on home these now only happen
+  when failing back after an outage.
 - **The Tailscale proxy is a single pod, on oracle.** The API's Ingresses use
   the `edge` ProxyClass rather than the default `homelab` one, so losing home
   or squadron leaves the Funnel endpoint up. Losing oracle takes it down
@@ -62,3 +63,18 @@ write, and the slowness is predictable enough to schedule around.
   mid-run finishes.
 - The image is amd64-only, so neither the API nor the database can land on
   oracle.
+
+## Amendment (2026-09-28): primary moved to home
+Originally the primary lived on squadron, moving to home only 17:00–23:00 on
+Wednesday and Friday. In practice squadron's link (WiFi, behind a mobile
+uplink) was not predictably bad but randomly bad: it stalled for minutes at
+a time on ordinary afternoons. Each stall timed out etcd and the API server
+on squadron and failed the database health checks. The cluster went through
+six promotions in its first four days, and one left the old primary unable
+to rejoin (`pg_rewind` found no common ancestor) until it was recloned.
+
+The primary, and the API with it, now live on home, and squadron holds the
+replica. The CPU argument turned out to be small: home's i5-10400T has more
+threads than squadron's i7-4790K, and only slightly lower per-core speed.
+Squadron stays an etcd member, because with only home and oracle, losing
+either one would stop the control plane.
