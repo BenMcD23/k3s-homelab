@@ -15,9 +15,9 @@ next.
 | Alias      | Hostname      | User        | Arch    | Notes |
 |------------|---------------|-------------|---------|-------|
 | `home`     | `home-server` | `ben`       | amd64   | Lenovo M70q, i5-10400T, 16GB. Reliable home LAN. Founding etcd member. |
-| `squadron` | `317server`   | `server317` | amd64   | i7-4790K, GTX 1070, 16GB. Remote site on WiFi. Best CPU and the only GPU, but the connection is unreliable and it could drop off. |
+| `squadron` | `317server`   | `server317` | amd64   | i7-4790K, GTX 1070, 16GB. Remote site on WiFi. Best CPU and the only GPU, but the connection is unreliable and it could drop off. **Agent only** since 2026-10-02 (ADR 0008). |
 | `oracle`   | `k8s-node`    | `ubuntu`    | aarch64 | OCI A1.Flex, 1 OCPU / 6GB. **Already provisioned — never recreate**, Ampere capacity is scarce. |
-| `oracle2`  | `k8s-node-655057` | `ubuntu` | aarch64 | OCI A1.Flex, 1 OCPU / 6GB, FAULT-DOMAIN-2 (oracle is in 3). Added 2026-10-02 so squadron can stop being an etcd voter. Display name in the OCI console is also "k8s node". |
+| `oracle2`  | `k8s-node-655057` | `ubuntu` | aarch64 | OCI A1.Flex, 1 OCPU / 6GB, FAULT-DOMAIN-2 (oracle is in 3). Added 2026-10-02 to take squadron's etcd vote. Display name in the OCI console is also "k8s node". |
 
 All four mesh over Tailscale (`tail02e471.ts.net`). The tailnet is the
 only network all the nodes share — k3s binds to Tailscale IPs, not LAN
@@ -173,14 +173,14 @@ easily get to in person, squadron especially. Otherwise run with
 make cluster        # or: ansible-playbook site.yml --tags k3s
 ```
 
-Four servers, all running embedded etcd, quorum 3 of 4 ([ADR
-0001](docs/decisions/0001-etcd-topology.md)). That is temporary: the plan is
-to make squadron an agent, leaving home, oracle and oracle2 as the three
-voters. Order is enforced by the
-play structure rather than by remembering to do it right: home is in the
-`k3s_first_server` inventory group and bootstraps with `cluster-init`,
-then `k3s_additional_servers` (squadron, oracle, oracle2) join it `serial: 1`, one
-at a time.
+Three servers running embedded etcd (home, oracle, oracle2), quorum 2 of 3,
+plus squadron as an agent with no etcd vote ([ADR
+0001](docs/decisions/0001-etcd-topology.md), [ADR
+0008](docs/decisions/0008-squadron-becomes-an-agent.md)). Order is enforced
+by the play structure rather than by remembering to do it right: home is in
+the `k3s_first_server` inventory group and bootstraps with `cluster-init`,
+then `k3s_additional_servers` (oracle, oracle2) join it `serial: 1`, one at a
+time, then `k3s_agents` (squadron).
 
 The token is pre-shared from SOPS rather than scraped off home after the
 fact, so all three nodes can be configured in one pass and a rebuilt node
@@ -196,6 +196,34 @@ up and then cannot talk to itself.
 `--cluster-init` is not set from a flag anyone can pass. It comes from
 inventory group membership, so there is one source of truth for which node
 bootstraps and no way to hand it to a second node by accident.
+
+### Demoting a server to an agent
+
+How squadron was demoted on 2026-10-02. Check the other servers are Ready
+first, and that removing this one leaves at least three voters.
+
+```bash
+ssh home 'sudo k3s etcd-snapshot save --name pre-demote'
+ssh <node> 'sudo systemctl disable --now k3s && sudo k3s-killall.sh'
+ssh home 'kubectl delete node <node>'   # k3s removes its etcd member too
+# keep the server state rather than deleting it, and drop the server unit
+ssh <node> 'sudo mv /var/lib/rancher/k3s/server /var/lib/rancher/k3s-server-backup-$(date +%F)
+            sudo mv /etc/rancher/k3s/config.yaml /var/lib/rancher/k3s-server-backup-$(date +%F)/
+            sudo rm /etc/systemd/system/k3s.service* /usr/local/bin/k3s-uninstall.sh
+            sudo systemctl daemon-reload'
+```
+
+Move the host from `k3s_additional_servers` to `k3s_agents`, then
+`ansible-playbook site.yml --limit <node> --tags k3s`.
+
+`k3s-uninstall.sh` is removed rather than left behind because it wipes
+`/var/lib/rancher/k3s`, which includes the node's local-path volumes.
+
+The re-registered node gets a new pod CIDR, but pods restarted by the agent
+can come back on the old `cni0` address and be unreachable from other nodes.
+If pod IPs on the node don't match `kubectl get node <node> -o
+jsonpath='{.spec.podCIDR}'`, run `systemctl stop k3s-agent && k3s-killall.sh
+&& systemctl start k3s-agent` on it.
 
 ### Node names and labels
 
@@ -475,3 +503,4 @@ argocd login argocd.tail02e471.ts.net --grpc-web
 - [0005 — ArgoCD bootstrapped by Ansible, published by the Tailscale operator](docs/decisions/0005-argocd-bootstrap-and-access.md)
 - [0006 — Cluster secrets: Sealed Secrets, key backed up with SOPS](docs/decisions/0006-cluster-secrets.md)
 - [0007 — SMS API on squadron, failing over to home](docs/decisions/0007-sms-api-placement-and-ha.md)
+- [0008 — squadron becomes an agent; oracle2 takes its etcd vote](docs/decisions/0008-squadron-becomes-an-agent.md)

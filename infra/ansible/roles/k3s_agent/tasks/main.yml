@@ -1,0 +1,129 @@
+---
+- name: Assert a cluster token and workload role are set
+  ansible.builtin.assert:
+    that:
+      - k3s_agent_token | length > 0
+      - node_role is defined and node_role | length > 0
+    fail_msg: k3s_token (SOPS) and node_role (inventory) must both be set.
+    quiet: true
+
+- name: Assert the inventory address is a Tailscale address on this host
+  ansible.builtin.assert:
+    that:
+      - "'tailscale0' in ansible_interfaces"
+      - k3s_agent_node_ip in ansible_all_ipv4_addresses
+    fail_msg: >-
+      {{ k3s_agent_node_ip }} is not an address on {{ inventory_hostname }}.
+      Check "tailscale ip -4" on the host and fix ansible_host.
+    quiet: true
+
+# A host is a server or an agent, never both. Turning a server into an agent
+# is a manual procedure (README, "Demoting a server to an agent") because it
+# removes an etcd member; this role will not do it implicitly.
+- name: Check for a k3s server on this host
+  ansible.builtin.command: systemctl is-active k3s
+  register: k3s_agent_server_unit
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Assert no k3s server is running here
+  ansible.builtin.assert:
+    that:
+      - k3s_agent_server_unit.stdout != 'active'
+    fail_msg: >-
+      k3s.service (a server) is running on {{ inventory_hostname }}. Demote
+      it first, see the README.
+    quiet: true
+
+- name: Wait for the server's API before joining
+  ansible.builtin.wait_for:
+    host: "{{ hostvars[k3s_agent_server_host].ansible_host }}"
+    port: 6443
+    timeout: "{{ k3s_agent_ready_timeout }}"
+
+- name: Ensure the k3s config directory exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+# no_log: the rendered file contains the cluster token.
+- name: Write the k3s agent config
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart k3s-agent
+
+- name: Check for an existing k3s-agent unit
+  ansible.builtin.stat:
+    path: /etc/systemd/system/k3s-agent.service
+  register: k3s_agent_unit
+
+- name: Read the installed k3s version
+  ansible.builtin.command: /usr/local/bin/k3s --version
+  register: k3s_agent_version_out
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# Installed when the agent unit is missing, not only on a version change: a
+# demoted server already has the right binary but no k3s-agent unit.
+- name: Install k3s {{ k3s_agent_version }} as an agent
+  when: >-
+    not k3s_agent_unit.stat.exists
+    or k3s_agent_version not in (k3s_agent_version_out.stdout | default(''))
+  block:
+    - name: Download the k3s installer
+      ansible.builtin.get_url:
+        url: "{{ k3s_agent_install_script_url }}"
+        dest: "{{ k3s_agent_install_script_path }}"
+        owner: root
+        group: root
+        mode: "0755"
+
+    # server and token come from config.yaml written above.
+    - name: Run the k3s installer
+      ansible.builtin.command:
+        cmd: "{{ k3s_agent_install_script_path }}"
+      environment:
+        INSTALL_K3S_VERSION: "{{ k3s_agent_version }}"
+        INSTALL_K3S_EXEC: agent
+      changed_when: true
+
+- name: Ensure k3s-agent is enabled and running
+  ansible.builtin.systemd_service:
+    name: k3s-agent
+    enabled: true
+    state: started
+
+- name: Apply any pending k3s-agent restart now
+  ansible.builtin.meta: flush_handlers
+
+# Agents hold no admin kubeconfig, so the checks below run on the server.
+- name: Wait for this node to report Ready
+  ansible.builtin.command:
+    cmd: "k3s kubectl wait --for=condition=Ready node/{{ k3s_agent_node_name }} --timeout=30s"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  delegate_to: "{{ k3s_agent_server_host }}"
+  register: k3s_agent_ready
+  changed_when: false
+  until: k3s_agent_ready.rc == 0
+  retries: 10
+  delay: 15
+
+- name: Label this node with its workload role
+  ansible.builtin.command:
+    cmd: "k3s kubectl label node {{ k3s_agent_node_name }} {{ k3s_agent_node_label }} --overwrite"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  delegate_to: "{{ k3s_agent_server_host }}"
+  register: k3s_agent_label
+  changed_when: "'not labeled' not in k3s_agent_label.stdout"

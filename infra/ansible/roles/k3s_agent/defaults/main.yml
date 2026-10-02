@@ -1,0 +1,21 @@
+---
+# Same release and installer as the servers (roles/k3s_server). Agents must
+# not run a newer k3s than the servers.
+k3s_agent_version: "v1.33.5+k3s1"
+k3s_agent_install_script_url: https://get.k3s.io
+k3s_agent_install_script_path: /usr/local/bin/k3s-install.sh
+
+# As for servers: everything over the tailnet (ADR 0004), node named after
+# its inventory alias, and the workload role label from the inventory.
+k3s_agent_node_ip: "{{ ansible_host }}"
+k3s_agent_flannel_iface: tailscale0
+k3s_agent_node_name: "{{ inventory_hostname }}"
+k3s_agent_node_label: "role={{ node_role }}"
+k3s_agent_token: "{{ k3s_token | default('') }}"
+
+# The server the agent first registers with. After that it learns every
+# API server and load-balances across them itself.
+k3s_agent_server_host: "{{ groups['k3s_first_server'][0] }}"
+k3s_agent_server_url: "https://{{ hostvars[k3s_agent_server_host].ansible_host }}:6443"
+
+k3s_agent_ready_timeout: 300

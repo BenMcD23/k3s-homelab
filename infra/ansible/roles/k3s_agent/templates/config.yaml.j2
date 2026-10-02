@@ -1,0 +1,13 @@
+# Managed by Ansible - roles/k3s_agent/templates/config.yaml.j2
+# Edits here are overwritten on the next run. Change the role instead.
+server: "{{ k3s_agent_server_url }}"
+token: "{{ k3s_agent_token }}"
+
+node-name: "{{ k3s_agent_node_name }}"
+node-ip: "{{ k3s_agent_node_ip }}"
+flannel-iface: "{{ k3s_agent_flannel_iface }}"
+
+# Only applied when the node first registers; tasks/main.yml reapplies it
+# from a server on every run so node_role changes take effect.
+node-label:
+  - "{{ k3s_agent_node_label }}"

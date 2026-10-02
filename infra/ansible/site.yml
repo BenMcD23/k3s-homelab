@@ -24,6 +24,14 @@
   roles:
     - k3s_server
 
+# After the servers: an agent registers through the first server's API.
+- name: Join the k3s agents
+  hosts: k3s_agents
+  become: true
+  tags: [k3s]
+  roles:
+    - k3s_agent
+
 # Before Argo CD: the operator is what publishes Argo CD's own UI, and a
 # front door cannot depend on the thing it is the front door to. If a sync
 # is broken, you still want the UI reachable to see why (ADR 0005).
