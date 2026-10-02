@@ -17,9 +17,10 @@ next.
 | `home`     | `home-server` | `ben`       | amd64   | Lenovo M70q, i5-10400T, 16GB. Reliable home LAN. Founding etcd member. |
 | `squadron` | `317server`   | `server317` | amd64   | i7-4790K, GTX 1070, 16GB. Remote site on WiFi. Best CPU and the only GPU, but the connection is unreliable and it could drop off. |
 | `oracle`   | `k8s-node`    | `ubuntu`    | aarch64 | OCI A1.Flex, 1 OCPU / 6GB. **Already provisioned — never recreate**, Ampere capacity is scarce. |
+| `oracle2`  | `k8s-node-655057` | `ubuntu` | aarch64 | OCI A1.Flex, 1 OCPU / 6GB, FAULT-DOMAIN-2 (oracle is in 3). Added 2026-10-02 so squadron can stop being an etcd voter. Display name in the OCI console is also "k8s node". |
 
-All three mesh over Tailscale (`tail02e471.ts.net`). The tailnet is the
-only network all three nodes share — k3s binds to Tailscale IPs, not LAN
+All four mesh over Tailscale (`tail02e471.ts.net`). The tailnet is the
+only network all the nodes share — k3s binds to Tailscale IPs, not LAN
 or public addresses.
 
 ## Layout
@@ -172,11 +173,13 @@ easily get to in person, squadron especially. Otherwise run with
 make cluster        # or: ansible-playbook site.yml --tags k3s
 ```
 
-Three servers, all running embedded etcd, quorum 2 of 3 ([ADR
-0001](docs/decisions/0001-etcd-topology.md)). Order is enforced by the
+Four servers, all running embedded etcd, quorum 3 of 4 ([ADR
+0001](docs/decisions/0001-etcd-topology.md)). That is temporary: the plan is
+to make squadron an agent, leaving home, oracle and oracle2 as the three
+voters. Order is enforced by the
 play structure rather than by remembering to do it right: home is in the
 `k3s_first_server` inventory group and bootstraps with `cluster-init`,
-then `k3s_additional_servers` (squadron, oracle) join it `serial: 1`, one
+then `k3s_additional_servers` (squadron, oracle, oracle2) join it `serial: 1`, one
 at a time.
 
 The token is pre-shared from SOPS rather than scraped off home after the

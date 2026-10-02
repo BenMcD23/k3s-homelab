@@ -48,10 +48,12 @@
   check_mode: false
 
 # Skipped if the node is already on the tailnet or no auth key is set, so
-# re-running against an enrolled node is a no-op.
+# re-running against an enrolled node is a no-op. No --ssh: Tailscale SSH
+# takes over port 22 on the tailnet IP and asks for a browser login, which
+# Ansible (plain OpenSSH to ansible_host) can't do.
 - name: Enrol node in the tailnet
   ansible.builtin.command:
-    cmd: "tailscale up --ssh --accept-dns=false --auth-key={{ base_tailscale_auth_key }}"
+    cmd: "tailscale up --accept-dns=false --auth-key={{ base_tailscale_auth_key }}"
   when:
     - base_tailscale_auth_key | length > 0
     - (base_tailscale_status.stdout | default('{}') | from_json).BackendState | default('') != 'Running'

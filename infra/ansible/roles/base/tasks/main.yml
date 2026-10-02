@@ -34,5 +34,5 @@
 
 - name: Include Oracle-specific firewall handling
   ansible.builtin.import_tasks: oracle_firewall.yml
-  when: inventory_hostname == 'oracle'
+  when: inventory_hostname.startswith('oracle')
   tags: [firewall]
