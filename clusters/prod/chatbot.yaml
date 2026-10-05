@@ -1,0 +1,31 @@
+# Docs assistant (RAG over the RAFAC controlled documents). Manifests live in
+# deploy/ of the app repo; CI there bumps the image tag. Cluster-internal only:
+# the SMS API's /chat/ask is its sole caller. The index isn't in git - it's
+# built on a PC and uploaded into the volume by push_index.sh in that repo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chatbot
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/BenMcD23/chatbot.git
+    targetRevision: main
+    path: deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: chatbot
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
