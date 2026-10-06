@@ -1,6 +1,7 @@
 # k3s's bundled Traefik, overriding the chart values k3s ships
-# (kube-system/traefik HelmChart). It is the public front door on oracle's
-# own IP, for things that need the internet without Tailscale Funnel.
+# (kube-system/traefik HelmChart). It is the public front door: one replica
+# on each oracle node, behind the OCI Network Load Balancer, which health-
+# checks both and is what the public DNS points at. Either node can go down.
 #
 # Why not Funnel: its proxy pod runs WireGuard inside a pod whose MTU is
 # already 1230 (flannel over tailscale0), so large responses crawled
@@ -8,9 +9,12 @@
 # raising the nodes' MTU would push home<->squadron onto DERP. Measured
 # 2026-09-25: a 160KB response went from 7.6s via Funnel to ~0.7s direct.
 #
-# svclb already forwards oracle's :80/:443 to this Service - the host's
-# "only port 22" iptables rule doesn't apply to hostPort DNAT - and the OCI
-# security list allows all TCP.
+# svclb forwards each node's :80/:443 to this Service - the host's "only port
+# 22" iptables rule doesn't apply to hostPort DNAT - and the OCI security
+# list allows all TCP.
+#
+# No state: certificates come from cert-manager (cert-manager.yaml) as
+# Secrets, so there is no acme.json volume pinning Traefik to one node.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -18,33 +22,26 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
-    # Oracle is the only node with a public IP; the others are behind NAT.
-    # Pinning it here keeps the path internet -> oracle -> API, with no
-    # extra hop via home. The image is multi-arch.
+    # The oracle nodes are the only ones with public IPs; home and squadron
+    # are behind NAT. The image is multi-arch.
     nodeSelector:
       role: edge
-    # Certificates live in acme.json, on a local-path volume on oracle, so a
-    # restart doesn't re-issue (Let's Encrypt rate limits).
-    persistence:
-      enabled: true
-      storageClass: local-path
-      size: 128Mi
-      path: /data
-    # The volume is ReadWriteOnce; don't start the new pod before the old
-    # one lets go of it.
+    deployment:
+      replicas: 2
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: traefik
+    # Two edge nodes, two replicas, one per node: there is no room to surge,
+    # so replace one at a time. The load balancer covers the gap.
     updateStrategy:
-      type: Recreate
-      rollingUpdate: null
-    certificatesResolvers:
-      letsencrypt:
-        acme:
-          storage: /data/acme.json
-          # TLS-ALPN on 443, not HTTP on 80: Traefik's HTTP challenge router
-          # catches every /.well-known/acme-challenge/ request, which would
-          # break cert-manager's (clusters/prod/cert-manager.yaml) while both
-          # run. TEMPORARY: this resolver goes once the API's cert comes
-          # from cert-manager.
-          tlsChallenge: {}
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 1
+        maxSurge: 0
     ports:
       web:
         redirections:
