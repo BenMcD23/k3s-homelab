@@ -19,9 +19,29 @@
 # recreates these chains on every start, so they must not be persisted to
 # rules.v4 - a stale copy there conflicts with the live set.
 #
-# Nothing here changes the ruleset. These tasks only assert it still looks
-# the way the cluster needs; if they fail, something changed the firewall
-# and k3s traffic may be dropped.
+# One gap: a pod reaching this node's own API server (10.43.0.1 balances
+# over all three, so 1 in 3 connections) arrives on cni0, not tailscale0,
+# and was REJECTed as "no route to host". That broke db-switchover runs on
+# oracle2 and would hit the CNPG operator and anything failed over here. So
+# traffic from local pods (cni0) is accepted too, live and in rules.v4.
+# Nothing else here changes the ruleset; the rest only asserts it still
+# looks the way the cluster needs.
+
+- name: Accept traffic from pods on this node
+  ansible.builtin.iptables:
+    chain: INPUT
+    in_interface: cni0
+    jump: ACCEPT
+    action: insert
+    comment: k3s pods on this node
+
+# Ahead of the REJECT, so it survives a reboot. Not the Tailscale chains:
+# see above.
+- name: Persist the pod rule in rules.v4
+  ansible.builtin.lineinfile:
+    path: /etc/iptables/rules.v4
+    line: '-A INPUT -i cni0 -m comment --comment "k3s pods on this node" -j ACCEPT'
+    insertbefore: '^-A INPUT -j REJECT --reject-with icmp-host-prohibited'
 
 - name: Read current iptables ruleset
   ansible.builtin.command: iptables -S
