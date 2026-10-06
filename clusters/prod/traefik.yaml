@@ -39,8 +39,12 @@ spec:
       letsencrypt:
         acme:
           storage: /data/acme.json
-          httpChallenge:
-            entryPoint: web
+          # TLS-ALPN on 443, not HTTP on 80: Traefik's HTTP challenge router
+          # catches every /.well-known/acme-challenge/ request, which would
+          # break cert-manager's (clusters/prod/cert-manager.yaml) while both
+          # run. TEMPORARY: this resolver goes once the API's cert comes
+          # from cert-manager.
+          tlsChallenge: {}
     ports:
       web:
         redirections:

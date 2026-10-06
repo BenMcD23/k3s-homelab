@@ -14,6 +14,7 @@ Each file is a child Application, so each thing gets its own sync status:
 | `cloudnative-pg.yaml` | CloudNativePG operator ([ADR 0007](../../docs/decisions/0007-sms-api-placement-and-ha.md)) | upstream Helm chart |
 | `sms-api.yaml` | SMS API, prod (`main`) and dev (`development`) | `deploy/` in [SMS_Scrapers_API](https://github.com/BenMcD23/SMS_Scrapers_API) |
 | `chatbot.yaml` | Docs assistant (RAG), cluster-internal, called by the SMS API | `deploy/` in [RAFAC-Chatbot](https://github.com/BenMcD23/RAFAC-Chatbot) |
+| `cert-manager.yaml` | cert-manager and the `letsencrypt` ClusterIssuer (HTTP-01 via Traefik) | upstream Helm chart |
 
 App manifests live in the app's own repo, so a change to code and its
 deployment is one PR. This directory only says which apps exist and where

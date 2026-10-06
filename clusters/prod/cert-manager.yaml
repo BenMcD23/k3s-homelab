@@ -1,0 +1,57 @@
+# cert-manager. Issues the public certificates into Secrets, so Traefik holds
+# no state and can run on both oracle nodes behind the OCI load balancer.
+# (Traefik's own ACME keeps certs in a file on one node's disk.)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: v1.21.2
+    helm:
+      valuesObject:
+        crds:
+          enabled: true
+        # Not in the request path: it only acts when a certificate is issued
+        # or renewed (every ~60 days, with 30 days' slack), so home being down
+        # for a while costs nothing.
+        nodeSelector: { role: interactive }
+        webhook:
+          nodeSelector: { role: interactive }
+        cainjector:
+          nodeSelector: { role: interactive }
+        startupapicheck:
+          nodeSelector: { role: interactive }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+# HTTP-01 through Traefik. Port 80 redirects to 443, which Let's Encrypt
+# follows (it doesn't check the certificate on the redirect).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+  annotations:
+    # The CRD arrives with the Application above, after this is first synced.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-account
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik
