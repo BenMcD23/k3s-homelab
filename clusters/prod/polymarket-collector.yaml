@@ -1,0 +1,37 @@
+# Polymarket order-book collector (research only: it reads public market data
+# and cannot trade). Manifests live in deploy/polymarket/ of the app repo;
+# changing the tag there releases it. The repo is private, so Argo CD reads it
+# with the credential sealed in trading-research-repo.sealed.yaml (ADR 0009).
+# Runs on an oracle node (role=edge): a dropped connection is a permanent gap in the
+# data, which rules out squadron's WiFi (ADR 0004).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: polymarket-collector
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/BenMcD23/Trading-Research.git
+    targetRevision: main
+    path: deploy/polymarket/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: trading-research
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The SealedSecret CRD comes from another Application; don't fail the
+      # dry run if this one syncs first.
+      - SkipDryRunOnMissingResource=true
+    # Also covers the first sync racing the repository credential: until the
+    # sealed credential has been decrypted, the repo reads as not found.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m

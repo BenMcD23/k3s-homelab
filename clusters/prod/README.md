@@ -15,6 +15,8 @@ Each file is a child Application, so each thing gets its own sync status:
 | `sms-api.yaml` | SMS API, prod (`main`) and dev (`development`) | `deploy/` in [SMS_Scrapers_API](https://github.com/BenMcD23/SMS_Scrapers_API) |
 | `chatbot.yaml` | Docs assistant (RAG), cluster-internal, called by the SMS API | `deploy/` in [RAFAC-Chatbot](https://github.com/BenMcD23/RAFAC-Chatbot) |
 | `cert-manager.yaml` | cert-manager and the `letsencrypt` ClusterIssuer (HTTP-01 via Traefik) | upstream Helm chart |
+| `polymarket-collector.yaml` | Polymarket order-book collector, research only, on an oracle node | `deploy/polymarket/` in Trading-Research (**private**) |
+| `trading-research-repo.sealed.yaml` | Not an Application: Argo CD's read-only credential for Trading-Research ([ADR 0009](../../docs/decisions/0009-private-app-repositories.md)) | sealed here, by the command below |
 
 App manifests live in the app's own repo, so a change to code and its
 deployment is one PR. This directory only says which apps exist and where
@@ -22,6 +24,21 @@ to find them.
 
 Secrets are `SealedSecret` objects committed next to the app's manifests
 ([ADR 0006](../../docs/decisions/0006-cluster-secrets.md)).
+
+A **private** app repository also needs a sealed read credential here, in the
+`argocd` namespace ([ADR 0009](../../docs/decisions/0009-private-app-repositories.md)).
+For Trading-Research, with a fine-grained token for that repository alone and
+read-only *Contents*:
+
+```bash
+kubectl create secret generic trading-research-repo -n argocd \
+    --from-literal=type=git \
+    --from-literal=url=https://github.com/BenMcD23/Trading-Research.git \
+    --from-literal=username=BenMcD23 --from-literal=password=<token> \
+    --dry-run=client -o yaml \
+  | kubectl label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
+  | kubeseal -o yaml > clusters/prod/trading-research-repo.sealed.yaml
+```
 
 Placement is not automatic. Every workload picks its node with a
 `nodeSelector` on `role=interactive`, `role=batch` or `role=edge`
