@@ -1,0 +1,54 @@
+# One Application per preview stack, from the resolver's list: label a pull
+# request `preview` in the API, SMS site or cadet portal repo and a stack for
+# its branch appears; remove the label (or merge or close the pull request)
+# and the stack is deleted.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: previews
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - plugin:
+        configMapRef:
+          name: preview-stacks
+        # How often Argo CD asks. The resolver caches its answer, so this
+        # mostly costs nothing.
+        requeueAfterSeconds: 60
+  template:
+    metadata:
+      name: "pv-{{ .slug }}"
+      annotations:
+        preview.317atc.co.uk/branch: "{{ .branch }}"
+        preview.317atc.co.uk/pull-requests: "{{ .pullRequests }}"
+      # Deleting the Application deletes what it deployed, namespace included.
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/BenMcD23/k3s-homelab.git
+        targetRevision: main
+        path: previews/stack
+        helm:
+          valuesObject:
+            slug: "{{ .slug }}"
+            branch: "{{ .branch }}"
+            pullRequests: "{{ .pullRequests }}"
+            apiImage: "{{ .apiImage }}"
+            siteImage: "{{ .siteImage }}"
+            portalImage: "{{ .portalImage }}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "pv-{{ .slug }}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          limit: 5
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m

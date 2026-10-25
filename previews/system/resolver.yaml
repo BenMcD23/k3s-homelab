@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preview-resolver
+  labels:
+    app: preview-resolver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: preview-resolver
+  template:
+    metadata:
+      labels:
+        app: preview-resolver
+    spec:
+      # Beside Argo CD, which is its only caller (ADR 0004).
+      nodeSelector:
+        role: interactive
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: resolver
+          image: python:3.14-slim-bookworm
+          command: [python, /app/resolver.py]
+          env:
+            - name: PLUGIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: preview-resolver-plugin
+                  key: token
+            # Optional. Without it the resolver uses GitHub's anonymous
+            # limit and caches for 4 minutes; with one (any fine-grained
+            # token, no permissions: the repos are public) it's 30 seconds.
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: preview-resolver-github
+                  key: token
+                  optional: true
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: script
+              mountPath: /app
+      volumes:
+        - name: script
+          configMap:
+            name: preview-resolver-script
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: preview-resolver
+spec:
+  selector:
+    app: preview-resolver
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+# How the ApplicationSet controller finds the resolver. The plugin generator
+# reads the token through "$<secret>:<key>", from a Secret Argo CD recognises
+# by its part-of label.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: preview-stacks
+data:
+  token: "$preview-resolver-plugin:token"
+  baseUrl: http://preview-resolver.argocd.svc.cluster.local
+  # One answer is three GitHub calls and up to twelve ghcr.io requests per stack.
+  requestTimeout: "60"
+---
+# Not sealed on purpose: the plugin generator insists on a token, but the
+# resolver only ever answers with public facts (labels on public pull
+# requests, digests of public images), so this protects nothing.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: preview-resolver-plugin
+  labels:
+    app.kubernetes.io/part-of: argocd
+stringData:
+  token: preview-resolver-public-data-only

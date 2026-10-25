@@ -1,0 +1,12 @@
+# Part of the chart rather than CreateNamespace=true, so it belongs to the
+# Application: removing the label deletes the Application, and its finalizer
+# deletes this namespace and everything in it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pv-{{ required "slug" .Values.slug }}
+  labels:
+    {{- include "stack.labels" . | nindent 4 }}
+  annotations:
+    preview.317atc.co.uk/branch: {{ .Values.branch | quote }}
+    preview.317atc.co.uk/pull-requests: {{ .Values.pullRequests | quote }}
