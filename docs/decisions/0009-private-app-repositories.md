@@ -15,31 +15,28 @@ apps never did:
   published from a private repository is private.
 
 ## Decision
-Both are SealedSecrets ([ADR 0006](0006-cluster-secrets.md)), each scoped
-as tightly as GitHub allows.
-
-- **The repository credential** lives here, in
+- **The repository credential** is a read-only **deploy key**, sealed
+  ([ADR 0006](0006-cluster-secrets.md)) in
   `clusters/prod/<repo>-repo.sealed.yaml`, in the `argocd` namespace with the
-  label `argocd.argoproj.io/secret-type: repository`. It holds a
-  **fine-grained** token for that one repository with read-only *Contents*,
-  so a leak exposes one repo's code and can't change anything. It belongs here
-  rather than in the app repo, because Argo CD has to read it before it can
-  read the app repo at all.
-- **The image pull secret** lives in the app repo next to its manifests, like
-  any other app secret, as a `kubernetes.io/dockerconfigjson` secret named
-  `ghcr-pull` in the app's namespace. It holds a **classic** token with only
-  `read:packages`, because fine-grained tokens can't read ghcr.io packages.
-  That scope covers every package on the account, which is the weaker of the
-  two, and the reason it is sealed to one namespace.
+  label `argocd.argoproj.io/secret-type: repository`, and the Application uses
+  the `git@github.com:` URL. A deploy key is scoped to one repository, can't
+  write, and doesn't expire, unlike a fine-grained token, and `gh` can create
+  one, which it can't do for a token. It belongs here rather than in the app
+  repo, because Argo CD has to read it before it can read the app repo at all.
+- **The image** is a **public** package, even though the repository is
+  private, so there is no pull secret. A pull secret would need a classic
+  token with `read:packages`, since fine-grained tokens can't read ghcr.io,
+  and that scope covers every package on the account and expires. This is only
+  acceptable while the image holds nothing secret. An app whose image does
+  would add a sealed `ghcr-pull` secret in its own namespace instead.
 
 Argo CD's `retry` covers the first sync racing the credential: until the
 controller has decrypted it, the repository reads as not found, and the next
 attempt succeeds.
 
 ## Consequences
-- A private app costs two `kubeseal` commands once, and nothing per deploy.
-- Both tokens expire. GitHub mails a reminder before it happens. Re-seal and
-  commit, or the app stops syncing (repo token) or stops starting new pods
-  (pull token). Running pods keep running.
-- Making the repository public would remove both, at the cost of publishing
-  the code. That is the app's call, not the cluster's.
+- A private app costs one deploy key and one `kubeseal` command, once, and
+  nothing per deploy. Nothing expires.
+- Its image is world-readable. Check it holds no secrets before choosing this.
+- Making the repository public would remove the deploy key too, at the cost of
+  publishing the code. That is the app's call, not the cluster's.
