@@ -1,0 +1,7 @@
+# One preview stack (ADR 0010): the API on its seeded dev database, the SMS
+# site and the cadet portal, with the dev sign-in, on the tailnet only. Argo CD
+# installs one per labelled branch from the ApplicationSet in
+# previews/system/applicationset.yaml; nothing here is installed by hand.
+apiVersion: v2
+name: preview-stack
+version: 0.1.0

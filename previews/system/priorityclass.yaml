@@ -1,0 +1,11 @@
+# Preview pods rank below every other pod (the default is 0), so the kubelet
+# evicts them first under memory pressure, and a prod pod that needs home's
+# room (squadron down, ADR 0007) preempts them. They never preempt anything.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: preview
+value: -100
+preemptionPolicy: Never
+globalDefault: false
+description: Preview stacks (ADR 0010). Evicted before anything else.

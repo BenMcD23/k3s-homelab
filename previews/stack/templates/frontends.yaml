@@ -1,0 +1,87 @@
+{{- /* The SMS site and the cadet portal: each repo's preview image (its
+     Dockerfile), a production build that offers the dev sign-in. */ -}}
+{{- $root := . -}}
+{{- $api := include "stack.url" (dict "root" . "part" "api") -}}
+{{- range $part, $app := dict "sms" (dict "image" .Values.siteImage) "portal" (dict "image" .Values.portalImage) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $part }}
+  namespace: pv-{{ $root.Values.slug }}
+  labels:
+    {{- include "stack.labels" $root | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ $part }}
+  template:
+    metadata:
+      labels:
+        app: {{ $part }}
+    spec:
+      {{- include "stack.podSpec" $root | nindent 6 }}
+      containers:
+        - name: {{ $part }}
+          image: {{ required (printf "%s image" $part) $app.image }}
+          env:
+            - name: AUTH_DEV_BYPASS
+              value: "1"
+            # Derived from the slug, so a re-render never logs everyone out.
+            # It guards nothing the login page doesn't already hand out: the
+            # dev buttons sign anyone on the tailnet in, to seeded data.
+            - name: AUTH_SECRET
+              value: {{ printf "preview-%s-%s" $root.Values.slug $part | sha256sum | quote }}
+            - name: AUTH_URL
+              value: {{ include "stack.url" (dict "root" $root "part" $part) }}
+            - name: AUTH_TRUST_HOST
+              value: "true"
+            # Never used: the dev sign-in replaces Google. Auth.js wants them set.
+            - name: GOOGLE_CLIENT_ID
+              value: preview
+            - name: GOOGLE_CLIENT_SECRET
+              value: preview
+            # The server's own calls stay in the cluster; pods can't resolve
+            # tailnet names.
+            - name: API_INTERNAL_BASE
+              value: http://api:8000
+            {{- if eq $part "sms" }}
+            # The browser's calls go over the tailnet. scripts/docker-entrypoint.sh
+            # swaps these into the build.
+            - name: PUBLIC_API_BASE
+              value: {{ $api }}
+            # Where the lesson QR codes point.
+            - name: PUBLIC_PORTAL_URL
+              value: {{ include "stack.url" (dict "root" $root "part" "portal") }}
+            {{- end }}
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            httpGet: { path: /login, port: 3000 }
+            periodSeconds: 10
+          # Hard caps, as for the API: a whole stack tops out at 1.5Gi and 2 CPUs.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $part }}
+  namespace: pv-{{ $root.Values.slug }}
+  labels:
+    {{- include "stack.labels" $root | nindent 4 }}
+spec:
+  selector:
+    app: {{ $part }}
+  ports:
+    - port: 3000
+      targetPort: 3000
+---
+{{ include "stack.ingress" (dict "root" $root "part" $part "port" 3000) }}
+{{- end }}

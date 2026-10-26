@@ -1,0 +1,12 @@
+# Filled in per stack by the ApplicationSet, from the resolver's answer.
+slug: ""
+branch: ""
+pullRequests: ""
+# Images by digest, so a new build of the branch rolls the pods.
+apiImage: ""
+siteImage: ""
+portalImage: ""
+
+# The tailnet the Tailscale operator names devices in. Change it with
+# argocd_tailnet in the Ansible inventory (README, "A nicer URL").
+tailnet: tail02e471.ts.net

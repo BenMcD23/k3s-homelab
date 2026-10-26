@@ -494,6 +494,30 @@ gRPC, which needs `--grpc-web` through this proxy:
 argocd login argocd.tail02e471.ts.net --grpc-web
 ```
 
+## Preview stacks
+
+To try a branch of the API, the SMS site or the cadet portal on your phone,
+add the **`preview`** label to its pull request. In a few minutes these are up
+on the tailnet ([ADR 0010](docs/decisions/0010-preview-stacks.md)):
+
+```
+https://pv-<branch>-sms.tail02e471.ts.net       SMS site:     STAFF / SNCO / NCO
+https://pv-<branch>-portal.tail02e471.ts.net    cadet portal: CADET (Cdt Kian Ashworth) / SNCO / NCO / STAFF
+```
+
+`<branch>` is the branch name lower-cased, with anything that isn't a letter
+or digit turned into `-`. The data is the seed from the API's
+`app/scripts/dev_server.py`, never production's. It starts fresh on each new
+build. A repo whose pull request isn't labelled runs main, so label each
+repo's pull request for a change that spans them. Remove the label, or merge or
+close the pull request, and the stack is deleted. At most three run at once,
+and a fourth waits for a slot.
+
+```bash
+kubectl -n argocd get applications | grep "^pv-"   # what's up
+kubectl -n argocd logs deploy/preview-resolver     # why a label did nothing
+```
+
 ## Decisions
 
 - [0001 — Embedded etcd, 3 servers, quorum 2](docs/decisions/0001-etcd-topology.md)
@@ -504,3 +528,5 @@ argocd login argocd.tail02e471.ts.net --grpc-web
 - [0006 — Cluster secrets: Sealed Secrets, key backed up with SOPS](docs/decisions/0006-cluster-secrets.md)
 - [0007 — SMS API on squadron, failing over to home](docs/decisions/0007-sms-api-placement-and-ha.md)
 - [0008 — squadron becomes an agent; oracle2 takes its etcd vote](docs/decisions/0008-squadron-becomes-an-agent.md)
+- [0009 — Private app repositories](docs/decisions/0009-private-app-repositories.md)
+- [0010 — Preview stacks: any branch, on seeded data, by label](docs/decisions/0010-preview-stacks.md)

@@ -23,3 +23,6 @@ age-keys.txt
 # OS / editor
 .DS_Store
 *.swp
+
+# Python
+__pycache__/

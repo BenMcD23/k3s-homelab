@@ -16,6 +16,7 @@ Each file is a child Application, so each thing gets its own sync status:
 | `chatbot.yaml` | Docs assistant (RAG), cluster-internal, called by the SMS API | `deploy/` in [RAFAC-Chatbot](https://github.com/BenMcD23/RAFAC-Chatbot) |
 | `cert-manager.yaml` | cert-manager and the `letsencrypt` ClusterIssuer (HTTP-01 via Traefik) | upstream Helm chart |
 | `polymarket-collector.yaml` | Polymarket order-book collector, research only, on an oracle node | `deploy/polymarket/` in Trading-Research (**private**) |
+| `previews.yaml` | Preview stacks: a branch of the API, SMS site and cadet portal on seeded data, started by a `preview` label ([ADR 0010](../../docs/decisions/0010-preview-stacks.md)) | `previews/` in this repo |
 | `trading-research-repo.sealed.yaml` | Not an Application: Argo CD's read-only deploy key for Trading-Research ([ADR 0009](../../docs/decisions/0009-private-app-repositories.md)) | sealed here, by the command below |
 
 App manifests live in the app's own repo, so a change to code and its
