@@ -9,6 +9,7 @@ namespace: argocd
 resources:
   - resolver.yaml
   - applicationset.yaml
+  - priorityclass.yaml
 
 # The script runs from this ConfigMap on the stock python image, so there's no
 # image to build. The hash suffix rolls the pod when it changes.

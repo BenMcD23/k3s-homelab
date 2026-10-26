@@ -40,13 +40,20 @@ with:
   is only for devices on the tailnet.
 
 Everything runs on home (`role=interactive`, [ADR 0004](0004-workload-placement.md)).
-The images are amd64-only.
+The images are amd64-only. Every container has hard CPU and memory limits, so
+a stack tops out at 1.5Gi and 2 CPUs, and three at 4.5Gi of home's 16GB. The
+pods run at the `preview` PriorityClass, below everything else: under memory
+pressure the kubelet evicts them first, and prod pods that need home (squadron
+down, [ADR 0007](0007-sms-api-placement-and-ha.md)) preempt them.
 
 **One branch, all three repos.** For each part, the stack runs that branch's
 image if the repo has one, and main's otherwise. A change that spans repos on
 one branch name is one stack, and a change to one repo runs against main for
-the other two. Each repo's `preview-image.yml` pushes
-`preview-<branch>` on every push, and `preview-main` from main.
+the other two. Each repo's `preview-image.yml` pushes `preview-<branch>`
+only for a pull request labelled `preview` (when the label goes on, and on
+each push after), and `preview-main` from main. So a change across repos
+needs the label on each repo's pull request; a repo whose pull request isn't
+labelled runs main.
 
 **The resolver** (`previews/system/resolver.py`) is an Argo CD ApplicationSet
 plugin generator: a small stdlib Python service that lists the labelled pull
@@ -60,9 +67,10 @@ ApplicationSet generators can express.
 for a slot rather than displacing a stack someone is looking at.
 
 ## Consequences
-- **Every push to every branch builds an image**, so a stack can start from
-  any branch without a rebuild. The repos are public, so Actions minutes are
-  free; the cost is ghcr.io storage. Old `preview-*` tags are not cleaned up.
+- **Only labelled pull requests build an image**, so most branches never
+  cost a build or ghcr.io storage. The price is a wait: a new label runs
+  main's images until the branch's build lands (a few minutes), then rolls.
+  Old `preview-*` tags are not cleaned up.
 - **A failure to read GitHub or ghcr.io is an error, not an empty list.** An
   empty list would make Argo CD delete every stack; an error leaves them as
   they are until the next try.
@@ -72,9 +80,9 @@ for a slot rather than displacing a stack someone is looking at.
   brings that down to about a minute.
 - **The data resets** when the API pod restarts or a new build lands. That
   is the point: each stack starts from the same squadron.
-- **A branch from before `preview-image.yml` existed has no image** until
-  something is pushed to it (or the workflow is run on it by hand). Until
-  then it runs main's.
+- **A pull request labelled before `preview-image.yml` reached its branch**
+  has no image until main is merged into it and pushed. Until then it runs
+  main's.
 - **The packages must be public.** The resolver looks digests up
   anonymously and the kubelet pulls without a secret, as for the other apps
   ([ADR 0009](0009-private-app-repositories.md)).

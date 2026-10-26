@@ -42,12 +42,15 @@ spec:
           readinessProbe:
             httpGet: { path: /readyz, port: 8000 }
             periodSeconds: 10
+          # Hard caps: these share home with prod while squadron is down. The
+          # seeded server peaks about 185Mi; a CPU cap only slows the seed.
           resources:
             requests:
               cpu: 50m
-              memory: 384Mi
+              memory: 192Mi
             limits:
-              memory: 1536Mi
+              cpu: "1"
+              memory: 512Mi
           volumeMounts:
             - name: data
               mountPath: /data

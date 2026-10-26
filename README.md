@@ -508,7 +508,8 @@ https://pv-<branch>-portal.tail02e471.ts.net    cadet portal: CADET (Cdt Kian As
 `<branch>` is the branch name lower-cased, with anything that isn't a letter
 or digit turned into `-`. The data is the seed from the API's
 `app/scripts/dev_server.py`, never production's. It starts fresh on each new
-build. A repo without that branch runs main. Remove the label, or merge or
+build. A repo whose pull request isn't labelled runs main, so label each
+repo's pull request for a change that spans them. Remove the label, or merge or
 close the pull request, and the stack is deleted. At most three run at once,
 and a fourth waits for a slot.
 

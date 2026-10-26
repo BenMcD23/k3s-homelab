@@ -13,6 +13,9 @@ preview.317atc.co.uk/branch: {{ .Values.slug | quote }}
 {{- define "stack.podSpec" -}}
 nodeSelector:
   role: interactive
+# Below everything else on home: under memory pressure these go first, and
+# prod pods failing over from squadron can preempt them.
+priorityClassName: preview
 securityContext:
   runAsNonRoot: true
 {{- end -}}

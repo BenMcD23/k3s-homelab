@@ -60,12 +60,14 @@ spec:
           readinessProbe:
             httpGet: { path: /login, port: 3000 }
             periodSeconds: 10
+          # Hard caps, as for the API: a whole stack tops out at 1.5Gi and 2 CPUs.
           resources:
             requests:
               cpu: 50m
-              memory: 192Mi
+              memory: 128Mi
             limits:
-              memory: 768Mi
+              cpu: 500m
+              memory: 512Mi
 ---
 apiVersion: v1
 kind: Service
