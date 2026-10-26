@@ -25,6 +25,9 @@ spec:
       containers:
         - name: {{ $part }}
           image: {{ required (printf "%s image" $part) $app.image }}
+          # The image's USER is `node` by name; runAsNonRoot needs its uid.
+          securityContext:
+            runAsUser: 1000
           env:
             - name: AUTH_DEV_BYPASS
               value: "1"
