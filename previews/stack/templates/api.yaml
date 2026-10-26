@@ -26,6 +26,10 @@ spec:
       containers:
         - name: api
           image: {{ required "apiImage" .Values.apiImage }}
+          # The image's USER is the name `app`; runAsNonRoot needs the number
+          # (the Dockerfile's useradd, as in the API's own deploy/base).
+          securityContext:
+            runAsUser: 10001
           command: [python, app/scripts/dev_server.py, --host, "0.0.0.0", --port, "8000", --db, /data/dev.db]
           env:
             # The SMS site calls the API from the browser. dev_server.py sets
