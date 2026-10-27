@@ -16,8 +16,10 @@ Each file is a child Application, so each thing gets its own sync status:
 | `chatbot.yaml` | Docs assistant (RAG), cluster-internal, called by the SMS API | `deploy/` in [RAFAC-Chatbot](https://github.com/BenMcD23/RAFAC-Chatbot) |
 | `cert-manager.yaml` | cert-manager and the `letsencrypt` ClusterIssuer (HTTP-01 via Traefik) | upstream Helm chart |
 | `polymarket-collector.yaml` | Polymarket order-book collector, research only, on an oracle node | `deploy/polymarket/` in Trading-Research (**private**) |
+| `resale-scout.yaml` | Resale scout: eBay price tracking and a weekly Claude brief; jobs on squadron, Postgres and page on home | `resale-scout/deploy/` in Random-money-research (**private**) |
 | `previews.yaml` | Preview stacks: a branch of the API, SMS site and cadet portal on seeded data, started by a `preview` label ([ADR 0010](../../docs/decisions/0010-preview-stacks.md)) | `previews/` in this repo |
 | `trading-research-repo.sealed.yaml` | Not an Application: Argo CD's read-only deploy key for Trading-Research ([ADR 0009](../../docs/decisions/0009-private-app-repositories.md)) | sealed here, by the command below |
+| `random-money-research-repo.sealed.yaml` | Not an Application: the same, for Random-money-research. **Not committed yet**: create it with the second command below | sealed here |
 
 App manifests live in the app's own repo, so a change to code and its
 deployment is one PR. This directory only says which apps exist and where
@@ -40,6 +42,21 @@ kubectl create secret generic trading-research-repo -n argocd \
     --from-file=sshPrivateKey=key --dry-run=client -o yaml \
   | kubectl label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
   | kubeseal -o yaml > clusters/prod/trading-research-repo.sealed.yaml
+shred -u key key.pub
+```
+
+For Random-money-research (resale-scout), the same with `REPO=Random-money-research`:
+
+```bash
+REPO=Random-money-research
+ssh-keygen -t ed25519 -N '' -C argocd-k3s-homelab -f key
+gh repo deploy-key add key.pub --repo BenMcD23/$REPO --title "Argo CD (k3s-homelab), read-only"
+kubectl create secret generic random-money-research-repo -n argocd \
+    --from-literal=type=git \
+    --from-literal=url=git@github.com:BenMcD23/$REPO.git \
+    --from-file=sshPrivateKey=key --dry-run=client -o yaml \
+  | kubectl label --local -f - argocd.argoproj.io/secret-type=repository -o yaml \
+  | kubeseal -o yaml > clusters/prod/random-money-research-repo.sealed.yaml
 shred -u key key.pub
 ```
 
