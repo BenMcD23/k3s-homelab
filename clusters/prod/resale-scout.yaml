@@ -1,8 +1,9 @@
 # Resale scout: tracks eBay UK prices for a watchlist, infers sales, and has
 # Claude write a weekly verdict on whether anything is worth buying to
-# resell. Manifests live in deploy/overlays/prod of the app repo; every push
-# to main releases it. The repo is private, so Argo CD reads it over SSH with
-# the deploy key sealed in resale-scout-repo.sealed.yaml (ADR 0009).
+# resell. Manifests live in resale-scout/deploy/overlays/prod of
+# Random-money-research; every push to main that touches resale-scout/
+# releases it. The repo is private, so Argo CD reads it over SSH with the
+# deploy key sealed in random-money-research-repo.sealed.yaml (ADR 0009).
 # CronJobs on squadron (role=batch), Postgres and the page on home
 # (role=interactive), per ADR 0004.
 apiVersion: argoproj.io/v1alpha1
@@ -13,9 +14,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@github.com:BenMcD23/resale-scout.git
+    repoURL: git@github.com:BenMcD23/Random-money-research.git
     targetRevision: main
-    path: deploy/overlays/prod
+    path: resale-scout/deploy/overlays/prod
   destination:
     server: https://kubernetes.default.svc
     namespace: resale-scout
