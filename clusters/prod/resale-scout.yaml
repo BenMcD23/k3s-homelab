@@ -1,0 +1,38 @@
+# Resale scout: tracks eBay UK prices for a watchlist, infers sales, and has
+# Claude write a weekly verdict on whether anything is worth buying to
+# resell. Manifests live in deploy/overlays/prod of the app repo; every push
+# to main releases it. The repo is private, so Argo CD reads it over SSH with
+# the deploy key sealed in resale-scout-repo.sealed.yaml (ADR 0009).
+# CronJobs on squadron (role=batch), Postgres and the page on home
+# (role=interactive), per ADR 0004.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: resale-scout
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:BenMcD23/resale-scout.git
+    targetRevision: main
+    path: deploy/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: resale-scout
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The SealedSecret and CNPG Cluster CRDs come from other Applications;
+      # don't fail the dry run if this one syncs first.
+      - SkipDryRunOnMissingResource=true
+    # Also covers the first sync racing the repository credential: until the
+    # sealed credential has been decrypted, the repo reads as not found.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
