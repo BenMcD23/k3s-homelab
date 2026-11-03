@@ -1,0 +1,38 @@
+# Reddit attention collector (research only: it reads ApeWisdom's public
+# mention counts every 2 hours and cannot trade). Forward-only, because
+# Reddit has no free history; the pre-registered study it feeds is judged
+# 2027-08-31. Manifests live in deploy/reddit-attention/ of Trading-Research,
+# read with the same sealed deploy key as the collector (ADR 0009); the image
+# is public. On an oracle node (role=edge): a gap in a forward record is
+# permanent, so it wants the reliable network (ADR 0004).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: reddit-attention
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:BenMcD23/Trading-Research.git
+    targetRevision: main
+    path: deploy/polymarket/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: trading-research
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The SealedSecret CRD comes from another Application; don't fail the
+      # dry run if this one syncs first.
+      - SkipDryRunOnMissingResource=true
+    # Also covers the first sync racing the repository credential: until the
+    # sealed credential has been decrypted, the repo reads as not found.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
