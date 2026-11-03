@@ -15,7 +15,7 @@ spec:
   source:
     repoURL: git@github.com:BenMcD23/Trading-Research.git
     targetRevision: main
-    path: deploy/polymarket/overlays/prod
+    path: deploy/reddit-attention/overlays/prod
   destination:
     server: https://kubernetes.default.svc
     namespace: trading-research
