@@ -1,0 +1,37 @@
+# Quarterly rebalance of the Trading-Research paper book (Alpaca *paper*
+# account only). Manifests live in deploy/paper-basket/ of the app repo; every
+# push to main that touches the job releases it. Read over SSH with the same
+# sealed deploy key as the collector (ADR 0009). The image is public, like the
+# collector's, so there is no pull secret: it holds code, nothing secret.
+# Runs on squadron (role=batch): a scheduled job that can run late (ADR 0004).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: paper-basket
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:BenMcD23/Trading-Research.git
+    targetRevision: main
+    path: deploy/paper-basket/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: trading-research
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The SealedSecret CRD comes from another Application; don't fail the
+      # dry run if this one syncs first.
+      - SkipDryRunOnMissingResource=true
+    # Also covers the first sync racing the repository credential: until the
+    # sealed credential has been decrypted, the repo reads as not found.
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
