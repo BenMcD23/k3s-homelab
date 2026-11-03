@@ -1,9 +1,8 @@
 # Quarterly rebalance of the Trading-Research paper book (Alpaca *paper*
 # account only). Manifests live in deploy/paper-basket/ of the app repo; every
 # push to main that touches the job releases it. Read over SSH with the same
-# sealed deploy key as the collector (ADR 0009). The image is private, unlike
-# the collector's, because it holds the whole repo: the pull secret is sealed
-# in the app's overlay (ADR 0009, "an app whose image does").
+# sealed deploy key as the collector (ADR 0009). The image is public, like the
+# collector's, so there is no pull secret: it holds code, nothing secret.
 # Runs on squadron (role=batch): a scheduled job that can run late (ADR 0004).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
