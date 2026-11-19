@@ -18,8 +18,10 @@ Each file is a child Application, so each thing gets its own sync status:
 | `polymarket-collector.yaml` | Polymarket order-book collector, research only, on an oracle node | `deploy/polymarket/` in Trading-Research (**private**) |
 | `paper-basket.yaml` | Quarterly rebalance of the Trading-Research paper book (Alpaca paper account), a CronJob on squadron | `deploy/paper-basket/` in Trading-Research (**private**) |
 | `reddit-attention.yaml` | Reddit mention-count collector (ApeWisdom), research only, forward-only, on an oracle node | `deploy/reddit-attention/` in Trading-Research (**private**) |
+| `clipper.yaml` | Clipper (Video-Slop): VODs to vertical clips with Discord approval, DRY_RUN, on home | `deploy/k8s/overlays/prod/` in Video-Slop (**private**) |
 | `previews.yaml` | Preview stacks: a branch of the API, SMS site and cadet portal on seeded data, started by a `preview` label ([ADR 0010](../../docs/decisions/0010-preview-stacks.md)) | `previews/` in this repo |
 | `trading-research-repo.sealed.yaml` | Not an Application: Argo CD's read-only deploy key for Trading-Research ([ADR 0009](../../docs/decisions/0009-private-app-repositories.md)) | sealed here, by the command below |
+| `video-slop-repo.sealed.yaml` | Not an Application: Argo CD's read-only deploy key for Video-Slop (ADR 0009) | sealed here, like the Trading-Research one |
 
 App manifests live in the app's own repo, so a change to code and its
 deployment is one PR. This directory only says which apps exist and where
