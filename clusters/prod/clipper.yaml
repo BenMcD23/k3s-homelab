@@ -1,0 +1,32 @@
+# Clipper (Video-Slop): streamer VODs -> scored vertical clips -> approval -> Postiz.
+# Manifests live in deploy/k8s/overlays/prod of Video-Slop (private), read with the
+# sealed deploy key in video-slop-repo.sealed.yaml (ADR 0009); the image is public.
+# On home (role=interactive): whisper/ffmpeg need amd64 and real CPU, which the
+# 1-OCPU arm64 oracles can't give, and home's residential IP suits VOD downloads.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: clipper
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:BenMcD23/Video-Slop.git
+    targetRevision: main
+    path: deploy/k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: clipper
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
