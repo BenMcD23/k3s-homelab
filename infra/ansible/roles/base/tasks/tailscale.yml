@@ -48,9 +48,7 @@
   check_mode: false
 
 # Skipped if the node is already on the tailnet or no auth key is set, so
-# re-running against an enrolled node is a no-op. No --ssh: Tailscale SSH
-# takes over port 22 on the tailnet IP and asks for a browser login, which
-# Ansible (plain OpenSSH to ansible_host) can't do.
+# re-running against an enrolled node is a no-op.
 - name: Enrol node in the tailnet
   ansible.builtin.command:
     cmd: "tailscale up --accept-dns=false --auth-key={{ base_tailscale_auth_key }}"
@@ -59,3 +57,19 @@
     - (base_tailscale_status.stdout | default('{}') | from_json).BackendState | default('') != 'Running'
   changed_when: true
   no_log: true
+
+# Tailscale SSH takes over port 22 on the tailnet IP, which is also what
+# Ansible connects to (ansible_host is the 100.x address). That only keeps
+# working if the tailnet policy has an "accept" rule for ansible_user: a
+# "check" rule asks for a browser login and the play hangs. Add the policy
+# rule (README, "Tailscale SSH") before turning this on.
+- name: Read Tailscale prefs
+  ansible.builtin.command: tailscale debug prefs
+  register: base_tailscale_prefs
+  changed_when: false
+  check_mode: false
+
+- name: Set Tailscale SSH
+  ansible.builtin.command: "tailscale set --ssh={{ base_tailscale_ssh | lower }}"
+  when: (base_tailscale_prefs.stdout | from_json).RunSSH | default(false) != base_tailscale_ssh
+  changed_when: true
