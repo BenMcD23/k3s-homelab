@@ -167,6 +167,32 @@ Confirm key auth works before running this against a machine you cannot
 easily get to in person, squadron especially. Otherwise run with
 `-e base_harden_ssh=false` and turn it on once you are sure.
 
+### Tailscale SSH
+
+`base_tailscale_ssh: true` (default) turns on Tailscale SSH: port 22 on
+each node's tailnet IP is answered by tailscaled, which lets you in based
+on your tailnet login and the policy, so no keys are involved. Ansible
+connects to that same address, so the [ACL
+policy](https://login.tailscale.com/admin/acls) must have this rule
+**before** the role runs:
+
+```json
+"ssh": [
+  {
+    "action": "accept",
+    "src":    ["autogroup:member"],
+    "dst":    ["autogroup:self"],
+    "users":  ["ben", "server317", "ubuntu"]
+  }
+]
+```
+
+`accept`, not `check`: a `check` rule makes you log in again in a browser,
+which Ansible can't do, so the play would hang. The nodes are owned by your
+account (not tagged), so only your own devices match `autogroup:self`. Root is
+left out on purpose: log in as the node's user and use `sudo`. The public and
+LAN `sshd` is untouched and is the way back in if the policy is wrong.
+
 ## Cluster bring-up
 
 ```bash

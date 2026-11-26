@@ -23,6 +23,10 @@ base_tailscale_gpg_url: "https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.
 # node that is already on the tailnet alone.
 base_tailscale_auth_key: "{{ tailscale_auth_key | default('') }}"
 
+# Tailscale SSH on the tailnet IP. Needs the policy rule in the README
+# first, or Ansible loses its way in.
+base_tailscale_ssh: true
+
 base_chrony_ntp_servers:
   - 0.ubuntu.pool.ntp.org
   - 1.ubuntu.pool.ntp.org
