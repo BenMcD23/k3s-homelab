@@ -1,5 +1,35 @@
 # k3s HA cluster
 
+## SSH in
+
+Tailscale SSH: no keys or passwords. Be signed in to Tailscale with the
+Google account, then the same commands work in Windows PowerShell, Linux
+and macOS:
+
+```bash
+ssh ben@home-server               # home
+ssh server317@317server           # squadron
+ssh ubuntu@k8s-node               # oracle
+ssh ubuntu@k8s-node-655057        # oracle2
+```
+
+Answer `yes` to the host key prompt the first time.
+
+**WSL** doesn't resolve these names, so use the IPs:
+
+```bash
+ssh ben@100.104.255.70            # home
+ssh server317@100.119.115.96      # squadron
+ssh ubuntu@100.100.152.108        # oracle
+ssh ubuntu@100.104.59.44          # oracle2
+```
+
+**Phone:** turn the Tailscale app on and use any SSH app (Termius, JuiceSSH)
+with the first set of commands. No key needed.
+
+**If Tailscale is down:** `ssh oracle` and `ssh oracle2` go to the public
+IPs with the key `~/.ssh/id_ed25519_cluster` (aliases in `~/.ssh/config`).
+
 Three-node k3s cluster with embedded etcd, meshed over Tailscale.
 Infrastructure as code: Terraform for the Oracle Cloud node, Ansible for
 host configuration, ArgoCD for workloads.
