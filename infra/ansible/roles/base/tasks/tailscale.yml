@@ -69,7 +69,16 @@
   changed_when: false
   check_mode: false
 
+# Switching drops the SSH session Ansible is running over (it arrives on
+# the tailnet IP), and tailscale refuses without --accept-risk. Fire and
+# forget so the dropped connection doesn't fail the task; the next task
+# reconnects through whichever SSH now owns port 22.
 - name: Set Tailscale SSH
-  ansible.builtin.command: "tailscale set --ssh={{ base_tailscale_ssh | lower }}"
+  ansible.builtin.command: "tailscale set --ssh={{ base_tailscale_ssh | lower }} --accept-risk=lose-ssh"
   when: (base_tailscale_prefs.stdout | from_json).RunSSH | default(false) != base_tailscale_ssh
   changed_when: true
+  async: 30
+  poll: 0
+
+- name: Reset the SSH connection after switching
+  ansible.builtin.meta: reset_connection
